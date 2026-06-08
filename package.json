@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@openrouter/sdk": "^0.12.79",
     "next": "^16.2.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

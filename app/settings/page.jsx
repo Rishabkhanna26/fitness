@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import {
+  saveAutoLoginData, setAutoLoginEnabled, clearAutoLoginData, getAutoLoginData
+} from "@/components/AutoLoginProvider";
+import {
   FiCalendar, FiSave, FiGift, FiPlus, FiTrash2,
   FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight,
   FiClock, FiDollarSign, FiActivity, FiMessageCircle,
-  FiSun, FiMoon, FiAlertCircle,
+  FiSun, FiMoon, FiAlertCircle, FiShield, FiLock,
 } from "react-icons/fi";
 
 const UNIT_LABELS = { days: "Days", months: "Months", years: "Years", visits: "Visits" };
@@ -244,15 +247,21 @@ export default function SettingsPage() {
   const [offerSaving, setOfferSaving] = useState(false);
 
   // ── Gym timing ───────────────────────────────────────
+  const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const DAY_KEYS  = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+  const defaultDaySchedule = () => DAY_KEYS.reduce((acc, d) => ({
+    ...acc,
+    [d]: { open: "06:00", close: "22:00", closed: d === "sun" }
+  }), {});
+
   const [timing, setTiming] = useState({
-    weekday_open: "06:00",
-    weekday_close: "22:00",
-    weekend_open: "07:00",
-    weekend_close: "20:00",
-    holiday_note: "",
+    schedule: defaultDaySchedule(),
+    holidays: [],          // array of "YYYY-MM-DD" strings
   });
-  const [timingMsg, setTimingMsg] = useState("");
+  const [timingMsg, setTimingMsg]       = useState("");
   const [timingSaving, setTimingSaving] = useState(false);
+  const [holidayInput, setHolidayInput] = useState("");
 
   // ── Membership pricing ───────────────────────────────
   const [pricing, setPricing] = useState([
@@ -283,7 +292,14 @@ export default function SettingsPage() {
         const settings = data.settings || [];
         const get = (key, fallback) => settings.find((s) => s.key === key)?.value ?? fallback;
         setIntervalDate(get("interval_date", intervalDate));
-        setTiming((prev) => ({ ...prev, ...get("gym_timing", {}) }));
+        setTiming((prev) => {
+          const saved = get("gym_timing", null);
+          if (!saved) return prev;
+          return {
+            schedule: saved.schedule || prev.schedule,
+            holidays: saved.holidays || [],
+          };
+        });
         setPricing((prev) => {
           const saved = get("membership_pricing", null);
           return saved ? saved : prev;
@@ -392,55 +408,120 @@ export default function SettingsPage() {
             icon={FiClock}
             iconBg="bg-sky-50 text-sky-600"
             title="Gym Timing"
-            subtitle="Set your opening and closing hours"
+            subtitle="Set hours for each day, weekly offs, and holiday dates"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <FiSun size={12} className="text-yellow-500" /> Weekdays (Mon – Fri)
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="text-xs font-semibold text-gray-500 mb-1 block">Opens at</span>
-                    <input type="time" value={timing.weekday_open}
-                      onChange={(e) => setTiming({ ...timing, weekday_open: e.target.value })}
-                      className={inp} />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-semibold text-gray-500 mb-1 block">Closes at</span>
-                    <input type="time" value={timing.weekday_close}
-                      onChange={(e) => setTiming({ ...timing, weekday_close: e.target.value })}
-                      className={inp} />
-                  </label>
+            {/* ── Per-day schedule ── */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Weekly Schedule</p>
+              {DAY_KEYS.map((d, i) => (
+                <div key={d} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition ${
+                  timing.schedule[d]?.closed ? "bg-gray-50 border-gray-100 opacity-60" : "bg-white border-gray-100"
+                }`}>
+                  {/* Day name */}
+                  <span className="text-sm font-semibold text-gray-700 w-24 shrink-0">{DAY_NAMES[i]}</span>
+
+                  {/* Closed toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setTiming((prev) => ({
+                      ...prev,
+                      schedule: { ...prev.schedule, [d]: { ...prev.schedule[d], closed: !prev.schedule[d]?.closed } }
+                    }))}
+                    className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full border transition ${
+                      timing.schedule[d]?.closed
+                        ? "bg-red-50 border-red-200 text-red-500"
+                        : "bg-green-50 border-green-200 text-green-600"
+                    }`}
+                  >
+                    {timing.schedule[d]?.closed ? "Closed" : "Open"}
+                  </button>
+
+                  {/* Time inputs */}
+                  {!timing.schedule[d]?.closed && (
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="time"
+                        value={timing.schedule[d]?.open || "06:00"}
+                        onChange={(e) => setTiming((prev) => ({
+                          ...prev,
+                          schedule: { ...prev.schedule, [d]: { ...prev.schedule[d], open: e.target.value } }
+                        }))}
+                        className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      />
+                      <span className="text-xs text-gray-400 shrink-0">to</span>
+                      <input
+                        type="time"
+                        value={timing.schedule[d]?.close || "22:00"}
+                        onChange={(e) => setTiming((prev) => ({
+                          ...prev,
+                          schedule: { ...prev.schedule, [d]: { ...prev.schedule[d], close: e.target.value } }
+                        }))}
+                        className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      />
+                    </div>
+                  )}
+                  {timing.schedule[d]?.closed && (
+                    <span className="text-xs text-gray-400 italic">Weekly off</span>
+                  )}
                 </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <FiMoon size={12} className="text-indigo-400" /> Weekends (Sat – Sun)
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="text-xs font-semibold text-gray-500 mb-1 block">Opens at</span>
-                    <input type="time" value={timing.weekend_open}
-                      onChange={(e) => setTiming({ ...timing, weekend_open: e.target.value })}
-                      className={inp} />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-semibold text-gray-500 mb-1 block">Closes at</span>
-                    <input type="time" value={timing.weekend_close}
-                      onChange={(e) => setTiming({ ...timing, weekend_close: e.target.value })}
-                      className={inp} />
-                  </label>
-                </div>
-              </div>
-              <label className="block sm:col-span-2">
-                <span className="text-xs font-semibold text-gray-500 mb-1 block">Holiday / Closure Note</span>
-                <input value={timing.holiday_note}
-                  onChange={(e) => setTiming({ ...timing, holiday_note: e.target.value })}
-                  placeholder="e.g. Closed on national holidays. Special hours on Diwali."
-                  className={inp} />
-              </label>
+              ))}
             </div>
+
+            {/* ── Holiday calendar ── */}
+            <div className="mt-6">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <FiCalendar size={12} /> Holiday Dates
+              </p>
+
+              {/* Add date */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="date"
+                  value={holidayInput}
+                  onChange={(e) => setHolidayInput(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+                <button
+                  type="button"
+                  disabled={!holidayInput || timing.holidays.includes(holidayInput)}
+                  onClick={() => {
+                    if (!holidayInput || timing.holidays.includes(holidayInput)) return;
+                    setTiming((prev) => ({ ...prev, holidays: [...prev.holidays, holidayInput].sort() }));
+                    setHolidayInput("");
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white hover:bg-sky-700 disabled:opacity-40 transition"
+                >
+                  <FiPlus size={14} /> Add
+                </button>
+              </div>
+
+              {/* Holiday list */}
+              {timing.holidays.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4 border border-dashed border-gray-200 rounded-xl">
+                  No holidays added yet. Pick a date above to mark a closure.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {timing.holidays.map((date) => (
+                    <div key={date} className="flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-full px-3 py-1">
+                      <FiCalendar size={11} className="text-red-400" />
+                      <span className="text-xs font-semibold text-red-700">
+                        {new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTiming((prev) => ({ ...prev, holidays: prev.holidays.filter((h) => h !== date) }))}
+                        className="text-red-400 hover:text-red-600 transition ml-0.5"
+                      >
+                        <FiX size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <SaveBar
               onSave={() => saveSetting("gym_timing", timing, setTimingSaving, setTimingMsg)}
               saving={timingSaving} message={timingMsg}
@@ -645,79 +726,434 @@ export default function SettingsPage() {
             )}
           </Section>
 
-          {/* ── 6. WhatsApp Connect ───────────────────────────── */}
-          <Section
-            icon={FiMessageCircle}
-            iconBg="bg-green-50 text-green-600"
-            title="WhatsApp Connect"
-            subtitle="Connect WhatsApp to send automated reminders to members"
-          >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">Enable WhatsApp Notifications</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Send renewal reminders, attendance alerts and offers via WhatsApp</p>
-                </div>
-                <button
-                  onClick={() => setWhatsapp({ ...whatsapp, enabled: !whatsapp.enabled })}
-                  className="text-gray-400 hover:text-green-600 transition"
-                >
-                  {whatsapp.enabled
-                    ? <FiToggleRight size={28} className="text-green-500" />
-                    : <FiToggleLeft size={28} />}
-                </button>
-              </div>
+          {/* ── 6. WhatsApp Bot (Code-based Pairing) ───────── */}
+          <WhatsAppBotSection />
 
-              <label className="block">
-                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">WhatsApp Business Phone Number</span>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">+</span>
-                  <input
-                    type="tel"
-                    value={whatsapp.phone}
-                    onChange={(e) => setWhatsapp({ ...whatsapp, phone: e.target.value })}
-                    placeholder="91XXXXXXXXXX"
-                    className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-green-300"
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Include country code without the + sign (e.g. 919876543210)</p>
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">
-                  WhatsApp API Key / Access Token
-                </span>
-                <input
-                  type="password"
-                  value={whatsapp.api_key}
-                  onChange={(e) => setWhatsapp({ ...whatsapp, api_key: e.target.value })}
-                  placeholder="Enter your API key"
-                  className={inp}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Get your API key from{" "}
-                  <a href="https://business.whatsapp.com" target="_blank" rel="noopener noreferrer"
-                    className="text-green-600 font-semibold hover:underline">
-                    WhatsApp Business API
-                  </a>{" "}or a provider like Twilio / Wati / Interakt.
-                </p>
-              </label>
-
-              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-3">
-                <FiAlertCircle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700">
-                  WhatsApp Business API requires an approved account. Saving the token here stores it in your settings database — make sure your database is secured.
-                </p>
-              </div>
-            </div>
-            <SaveBar
-              onSave={() => saveSetting("whatsapp", { phone: whatsapp.phone, api_key: whatsapp.api_key, enabled: whatsapp.enabled }, setWaSaving, setWaMsg)}
-              saving={waSaving} message={waMsg}
-            />
-          </Section>
+          {/* ── 7. Auto Login ─────────────────────────────────── */}
+          <AutoLoginSection />
 
         </main>
       </div>
     </div>
+  );
+}
+
+// ── WhatsApp Bot Section Component ──────────────────────────────────────────
+function WhatsAppBotSection() {
+  const [botStatus, setBotStatus]   = useState("idle");
+  const [botPhone, setBotPhone]     = useState("");
+  const [pairingCode, setPairingCode] = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [pairing, setPairing]       = useState(false); // waiting for code to arrive
+  const [message, setMessage]       = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
+
+  useEffect(() => {
+    checkBotStatus();
+    const interval = setInterval(checkBotStatus, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function checkBotStatus() {
+    try {
+      const res  = await fetch("/api/whatsapp/status");
+      const data = await res.json();
+      setBotStatus(data.state);
+      setBotPhone(data.phone || "");
+      if (data.pairingCode) {
+        setPairingCode(data.pairingCode);
+        setPairing(false); // code arrived, stop spinner
+      }
+    } catch {
+      setBotStatus("offline");
+    }
+  }
+
+  async function startPairing(e) {
+    e.preventDefault();
+    if (!phoneInput.trim()) { setMessage("Please enter a phone number."); return; }
+    setLoading(true);
+    setPairing(false);
+    setPairingCode("");
+    setMessage("");
+    try {
+      const res  = await fetch("/api/whatsapp/start-pairing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phoneInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      // Server responds immediately; pairing code will arrive via polling
+      setPairing(true);
+      setBotPhone(phoneInput);
+      setMessage("Starting WhatsApp session… pairing code will appear below.");
+    } catch (err) {
+      setMessage(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function disconnect() {
+    if (!confirm("Disconnect WhatsApp bot?")) return;
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/whatsapp/disconnect", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setBotStatus("idle");
+      setBotPhone("");
+      setPairingCode("");
+      setPairing(false);
+      setPhoneInput("");
+      setMessage("Disconnected.");
+    } catch (err) {
+      setMessage(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const connected      = botStatus === "ready";
+  const isPairing      = botStatus === "pairing" || pairing;
+  const isReconnecting = botStatus === "reconnecting";
+
+  return (
+    <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
+            <FiMessageCircle />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">WhatsApp Chatbot</h2>
+            <p className="text-xs text-gray-400">Code-based login · powered by OpenRouter AI</p>
+          </div>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+          connected      ? "bg-green-100 text-green-700"  :
+          isPairing      ? "bg-yellow-100 text-yellow-700" :
+          isReconnecting ? "bg-blue-100 text-blue-700"    :
+                           "bg-gray-100 text-gray-500"
+        }`}>
+          {connected      ? "🟢 Connected"    :
+           isPairing      ? "🟡 Pairing…"     :
+           isReconnecting ? "🔵 Reconnecting…":
+                            "⚫ " + botStatus}
+        </span>
+      </div>
+
+      <div className="space-y-4">
+
+        {/* ── Connected ── */}
+        {connected && (
+          <>
+            <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
+              <p className="text-xs font-semibold text-green-700">✓ WhatsApp Connected</p>
+              <p className="text-sm font-semibold text-green-900 mt-0.5">+{botPhone}</p>
+              <p className="text-xs text-green-600 mt-1">
+                Bot is live — replies to all incoming messages with gym info using AI.
+              </p>
+            </div>
+            <button
+              onClick={disconnect}
+              disabled={loading}
+              className="flex items-center gap-2 rounded-xl border border-red-200 px-5 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-60 transition"
+            >
+              <FiX size={14} /> Disconnect
+            </button>
+          </>
+        )}
+
+        {/* ── Idle: enter phone ── */}
+        {!connected && !isPairing && !pairingCode && (
+          <>
+            <p className="text-sm text-gray-500">
+              Enter your WhatsApp number. A pairing code will appear here — enter it in WhatsApp to link the bot.
+            </p>
+            <form onSubmit={startPairing} className="space-y-3">
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">WhatsApp Phone Number</span>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-sm font-bold text-gray-500">+91</span>
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="9876543210"
+                    maxLength={10}
+                    disabled={loading}
+                    className={`${inp} pl-12`}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Enter your 10-digit mobile number</p>
+              </label>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60 transition"
+              >
+                {loading ? "Starting…" : "Get Pairing Code"}
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* ── Auto-reconnecting ── */}
+        {!connected && isReconnecting && (
+          <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-4 flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Reconnecting…</p>
+              <p className="text-xs text-blue-600 mt-0.5">Lost connection — restoring your WhatsApp session automatically.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Waiting for pairing code to arrive ── */}
+        {!connected && isPairing && !pairingCode && (
+          <div className="rounded-xl bg-yellow-50 border border-yellow-100 px-4 py-4 flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-yellow-500 shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-yellow-800">Starting WhatsApp session…</p>
+              <p className="text-xs text-yellow-700 mt-0.5">Pairing code will appear here in a few seconds. Please wait.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Pairing code ready ── */}
+        {!connected && pairingCode && (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-4">
+              <p className="text-xs font-semibold text-blue-600 mb-2">📱 Your Pairing Code</p>
+              <p className="text-3xl font-black text-blue-700 tracking-[0.3em] mb-3">{pairingCode}</p>
+              <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to <strong>Settings → Linked Devices → Link a Device</strong></li>
+                <li>Tap <strong>"Link with phone number instead"</strong></li>
+                <li>Enter the code above</li>
+              </ol>
+              <p className="text-xs text-blue-500 mt-2">Status will update automatically once WhatsApp confirms.</p>
+            </div>
+            <button
+              onClick={async () => {
+                // Reset bot state without full logout — just stops the current init
+                try {
+                  await fetch("/api/whatsapp/reset", { method: "POST" });
+                } catch {}
+                setPairingCode("");
+                setPairing(false);
+                setBotStatus("idle");
+                setPhoneInput("");
+                setMessage("");
+              }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition"
+            >
+              ↩ Start over with a different number
+            </button>
+          </div>
+        )}
+
+        {/* ── Auth failed ── */}
+        {botStatus === "auth_failed" && (
+          <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3">
+            <p className="text-sm font-semibold text-red-700">Authentication failed.</p>
+            <p className="text-xs text-red-600 mt-0.5">Make sure you entered the correct code before it expired. Try again.</p>
+            <button
+              onClick={() => { setBotStatus("idle"); setPairingCode(""); setPairing(false); }}
+              className="mt-2 text-xs font-semibold text-red-600 hover:underline"
+            >Try again</button>
+          </div>
+        )}
+
+        {message && (
+          <p className={`text-xs font-semibold rounded-lg px-3 py-2 ${
+            message.startsWith("Error") ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-500"
+          }`}>{message}</p>
+        )}
+
+        {/* ── How it works ── */}
+        {!connected && (
+          <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 flex items-start gap-3">
+            <FiAlertCircle size={14} className="text-gray-400 mt-0.5 shrink-0" />
+            <div className="text-xs text-gray-500 space-y-0.5">
+              <p className="font-semibold text-gray-600">How it works</p>
+              <p>Enter your number → get a pairing code → enter it in WhatsApp → bot is live.</p>
+              <p>The bot answers questions about gym timing, membership prices, and diet plans using your saved settings.</p>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </section>
+  );
+}
+
+// ── Auto Login Section ───────────────────────────────────────────────────────
+function AutoLoginSection() {
+  const [enabled, setEnabled]       = useState(false);
+  const [hasCreds, setHasCreds]     = useState(false);
+  const [email, setEmail]           = useState("");
+  const [password, setPassword]     = useState("");
+  const [showForm, setShowForm]     = useState(false);
+  const [msg, setMsg]               = useState("");
+
+  useEffect(() => {
+    const data = getAutoLoginData();
+    if (data) {
+      setEnabled(!!data.enabled);
+      setHasCreds(!!(data.email && data.password));
+      setEmail(data.email || "");
+    }
+  }, []);
+
+  function toggle() {
+    const next = !enabled;
+    setEnabled(next);
+    setAutoLoginEnabled(next);
+    setMsg(next ? "Auto-login activated." : "Auto-login deactivated.");
+    setTimeout(() => setMsg(""), 2500);
+  }
+
+  function save(e) {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) { setMsg("Fill in both fields."); return; }
+    saveAutoLoginData(email.trim(), password);
+    setHasCreds(true);
+    setShowForm(false);
+    setPassword("");
+    setMsg("Credentials saved. Auto-login is now active.");
+    setEnabled(true);
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  function remove() {
+    if (!confirm("Remove saved credentials? Auto-login will be disabled.")) return;
+    clearAutoLoginData();
+    setEnabled(false);
+    setHasCreds(false);
+    setEmail("");
+    setPassword("");
+    setMsg("Credentials removed.");
+    setTimeout(() => setMsg(""), 2500);
+  }
+
+  return (
+    <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <FiShield size={18} />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">Auto Login</h2>
+            <p className="text-xs text-gray-400">Stay logged in — restore session automatically if it expires</p>
+          </div>
+        </div>
+        {/* Activate / Deactivate toggle */}
+        <button
+          onClick={toggle}
+          disabled={!hasCreds}
+          title={!hasCreds ? "Save credentials first" : ""}
+          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold border transition disabled:opacity-40 ${
+            enabled
+              ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
+              : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+          }`}
+        >
+          {enabled
+            ? <><FiToggleRight size={15}/> Active</>
+            : <><FiToggleLeft size={15}/> Inactive</>}
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {hasCreds && !showForm ? (
+          <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <FiLock size={13} className="text-gray-400" />
+              <span className="text-sm text-gray-700 font-medium">{email}</span>
+              <span className="text-xs text-gray-400">· password saved</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowForm(true)}
+                className="text-xs font-semibold text-indigo-600 hover:underline"
+              >Edit</button>
+              <button
+                onClick={remove}
+                className="text-xs font-semibold text-red-500 hover:underline"
+              >Remove</button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={save} className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Save your admin credentials here. If your session expires, the app will log you back in silently.
+            </p>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-500 mb-1 block">Admin Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@fitnation.in"
+                required
+                className={inp}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-500 mb-1 block">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className={inp}
+              />
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 transition"
+              >
+                <FiCheck size={14} /> Save & Activate
+              </button>
+              {hasCreds && (
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setPassword(""); }}
+                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition"
+                >Cancel</button>
+              )}
+            </div>
+          </form>
+        )}
+
+        {msg && (
+          <p className={`text-xs font-semibold rounded-lg px-3 py-2 ${
+            msg.includes("removed") || msg.includes("deactivated")
+              ? "bg-gray-50 text-gray-500"
+              : "bg-indigo-50 text-indigo-700"
+          }`}>{msg}</p>
+        )}
+
+        <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-2.5">
+          <FiAlertCircle size={13} className="text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-700">
+            Credentials are stored only in this browser's local storage — never sent to any server other than your own login API. Use only on trusted devices.
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
