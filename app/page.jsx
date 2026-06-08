@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
-import { members as fallbackMembers } from "@/lib/data";
 import {
   FiUsers, FiCheckCircle, FiDollarSign, FiCreditCard,
   FiUserPlus, FiCalendar, FiTrendingUp, FiTrendingDown,
@@ -121,13 +120,13 @@ function Card({ children, className = "" }) {
 }
 
 export default function DashboardPage() {
-  const [members, setMembers] = useState(fallbackMembers);
+  const [members, setMembers] = useState([]);
 
   useEffect(() => {
     fetch("/api/members")
       .then((response) => response.json())
-      .then((data) => setMembers(data.members || fallbackMembers))
-      .catch(() => setMembers(fallbackMembers));
+      .then((data) => setMembers(data.members || []))
+      .catch(() => setMembers([]));
   }, []);
 
   const stats = useMemo(() => {

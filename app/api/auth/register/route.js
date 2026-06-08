@@ -9,8 +9,13 @@ export async function POST(request) {
 
   try {
     const member = await registerMember(body);
+    if (!member) {
+      return NextResponse.json({ error: "Supabase is not configured. Check your SUPABASE_URL and SUPABASE_ANON_KEY in .env." }, { status: 500 });
+    }
     return NextResponse.json({ member });
-  } catch {
-    return NextResponse.json({ error: "Could not register member. Check Supabase settings." }, { status: 500 });
+  } catch (err) {
+    // Surface the real error message from Supabase
+    const message = err?.message || String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -65,6 +65,29 @@ create table if not exists settings (
   updated_at timestamptz not null default now()
 );
 
+-- NEW: loyalty_offers table for gym renewal reward offers
+create table if not exists loyalty_offers (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  offer_type text not null check (offer_type in ('percentage', 'fixed')),
+  amount numeric(10,2) not null default 0,
+  interval_unit text not null check (interval_unit in ('days', 'months', 'years')),
+  interval_value integer not null default 1,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- NEW: member_rewards table to track reward availing per member
+create table if not exists member_rewards (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references members(id) on delete cascade,
+  offer_id uuid not null references loyalty_offers(id) on delete cascade,
+  availed_at timestamptz not null default now(),
+  next_due_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 insert into plans (name, price, duration_days, features)
 values
   ('Basic', 1500, 30, '["Gym Access", "Cardio Zone Access"]'),
@@ -74,6 +97,5 @@ on conflict (name) do nothing;
 
 insert into settings (key, value)
 values
-  ('offer', '{"title":"Launch Offer","discount_percent":10,"active":true}'),
   ('interval_date', '{"renewal_reminder_days":7,"attendance_alert_days":5}')
 on conflict (key) do nothing;
