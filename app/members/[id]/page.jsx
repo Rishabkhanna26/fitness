@@ -462,10 +462,6 @@ export default function MemberDetailPage({ params }) {
                 <FiTrash2 size={14} />
                 Delete
               </button>
-              <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-semibold transition shadow-sm shadow-indigo-200">
-                <FiCalendar size={14} />
-                Mark Attendance
-              </button>
             </div>
           </div>
         </header>
@@ -770,7 +766,6 @@ export default function MemberDetailPage({ params }) {
 
         </main>
 
-        <footer className="text-center text-xs text-gray-400 py-6">© 2026 FitNation Gym CRM. All rights reserved.</footer>
       </div>
     </div>
   );

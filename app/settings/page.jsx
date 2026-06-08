@@ -1105,7 +1105,7 @@ function AutoLoginSection() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@fitnation.in"
+                placeholder="admin@Optimus.in"
                 required
                 className={inp}
               />

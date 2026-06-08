@@ -1,7 +1,7 @@
 {
-  "name": "fitnation-whatsapp-bot",
+  "name": "Optimus-whatsapp-bot",
   "version": "1.0.0",
-  "description": "WhatsApp chatbot for FitNation Gym CRM",
+  "description": "WhatsApp chatbot for Optimus Gym CRM",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

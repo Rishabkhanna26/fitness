@@ -38,7 +38,7 @@ function SidebarContent({ session, navItems, pathname, logout, onNavClick }) {
             <FiActivity className="text-white" size={16} />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">FitNation</p>
+            <p className="text-sm font-bold text-gray-900">Optimus</p>
             <p className="text-[10px] text-gray-400 font-medium">Gym CRM</p>
           </div>
         </div>
@@ -74,7 +74,7 @@ function SidebarContent({ session, navItems, pathname, logout, onNavClick }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold text-gray-800">{session?.name || "Admin"}</p>
-            <p className="truncate text-[10px] text-gray-400">{session?.email || "admin@fitnation.in"}</p>
+            <p className="truncate text-[10px] text-gray-400">{session?.email || "admin@Optimus.in"}</p>
           </div>
           <button
             onClick={logout}

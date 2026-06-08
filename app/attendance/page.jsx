@@ -91,12 +91,28 @@ function formatTime(value) {
   return date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
-function getAttendanceRate(member, today) {
-  const joined = parseDate(member.joinDate) || parseDate(member.rawJoinDate) || today;
-  const daysActive = Math.max(1, Math.ceil((today.getTime() - joined.getTime()) / 86400000) + 1);
-  const presentCount = (member.attendanceHistory || []).filter((entry) => entry.status === "Present").length;
-  return Math.min(100, Math.round((presentCount / daysActive) * 100));
+// function getAttendanceRate(member, today) {
+//   const joined = parseDate(member.joinDate) || parseDate(member.rawJoinDate) || today;
+//   const daysActive = Math.max(1, Math.ceil((today.getTime() - joined.getTime()) / 86400000) + 1);
+//   const presentCount = (member.attendanceHistory || []).filter((entry) => entry.status === "Present").length;
+//   return Math.min(100, Math.round((presentCount / daysActive) * 100));
+// }
+
+function getMembershipDays(member) {
+  const joined = parseDate(member.joinDate) || parseDate(member.rawJoinDate);
+  const expires = parseDate(member.expiryDate) || parseDate(member.rawExpiryDate);
+  if (!joined || !expires) return null;
+  const days = Math.ceil((expires.getTime() - joined.getTime()) / 86400000) + 1;
+  return Math.max(1, days);
 }
+
+function getAttendanceRate(member) {
+  const totalDays = getMembershipDays(member);
+  if (!totalDays) return 0;
+  const presentCount = (member.attendanceHistory || []).filter((e) => e.status === "Present").length;
+  return Math.min(100, Math.round((presentCount / totalDays) * 100));
+}
+
 
 function getTodayStatus(member, today) {
   const entry = (member.attendanceHistory || []).find((item) => sameDay(item.rawDate || item.date, today));
@@ -324,9 +340,15 @@ export default function AttendancePage() {
       const attendanceHistory = member.attendanceHistory || [];
       const todayStatus = getTodayStatus(member, today);
       const lastPresent = [...attendanceHistory].find((entry) => entry.status === "Present");
-      const attendanceRate = getAttendanceRate(member, today);
+      // const attendanceRate = getAttendanceRate(member, today);
+      const attendanceRate = getAttendanceRate(member);
+
+      const totalDays = getMembershipDays(member) ?? 0;
+      const presentCount = attendanceHistory.filter((e) => e.status === "Present").length;
+      const daysAbsent = Math.max(0, totalDays - presentCount);
+
       const lastVisit = member.lastVisit || formatShortDate(lastPresent?.rawDate || lastPresent?.date);
-      const daysAbsent = member.attendanceInsights?.daysSince ?? 0;
+      // const daysAbsent = member.attendanceInsights?.daysSince ?? 0;
 
       return {
         ...member,
@@ -472,7 +494,7 @@ export default function AttendancePage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[3fr_1fr] ">
             <Card>
               <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="relative w-full md:max-w-md">
@@ -601,22 +623,8 @@ export default function AttendancePage() {
             </Card>
 
             <div className="space-y-6">
-              <Card>
-                <h3 className="mb-4 text-sm font-bold text-gray-900">Attendance Trend (Last 7 Days)</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={attendanceTrend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ fontSize: 12, borderRadius: 10, border: "none", boxShadow: "0 10px 20px rgba(0,0,0,0.08)" }}
-                    />
-                    <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3, fill: "#4f46e5", strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Card>
 
-              <Card>
+              {/* <Card>
                 <h3 className="mb-4 text-sm font-bold text-gray-900">Inactive Members</h3>
                 <div className="space-y-2">
                   {inactiveMembers.length === 0 ? (
@@ -638,7 +646,7 @@ export default function AttendancePage() {
                     ))
                   )}
                 </div>
-              </Card>
+              </Card> */}
 
               {/* {session?.role === "admin" && (
                 // <AdminAttendanceCard

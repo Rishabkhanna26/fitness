@@ -426,7 +426,6 @@ export default function MembersPage() {
               ))}
             </div>
 
-            <span className="text-xs text-gray-400 ml-auto">{filtered.length} members found</span>
           </div>
 
           {/* Member Cards */}
@@ -440,74 +439,131 @@ export default function MembersPage() {
               <p className="text-sm">No members found matching your search.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((member) => (
-                <div
-                  key={member.id}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-indigo-100 transition-all group flex flex-col"
-                >
-                  <Link href={`/members/${member.id}`} className="flex-1">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`w-12 h-12 rounded-xl ${member.avatarColor} flex items-center justify-center text-white font-bold text-sm`}>
-                        {member.avatar}
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge[member.status]}`}>
-                        {member.status}
-                      </span>
-                    </div>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm border-collapse">
+                    <thead className="bg-gray-50 text-xs uppercase text-gray-500 tracking-wide">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold">Member</th>
+                        <th className="px-4 py-3 text-left font-semibold">Status</th>
+                        <th className="px-4 py-3 text-left font-semibold">Plan</th>
+                        <th className="px-4 py-3 text-left font-semibold">Phone</th>
+                        <th className="px-4 py-3 text-left font-semibold">Expiry</th>
+                        <th className="px-4 py-3 text-left font-semibold">Days Left</th>
+                        <th className="px-4 py-3 text-left font-semibold">Visits</th>
+                        <th className="px-4 py-3 text-left font-semibold">Paid</th>
+                        <th className="px-4 py-3 text-left font-semibold">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((member) => (
+                        <tr
+                          key={member.id}
+                          className="border-t border-gray-50 hover:bg-indigo-50/30 transition group"
+                        >
+                          {/* Member — avatar + name + email */}
+                          <td className="px-4 py-3">
+                            <Link href={`/members/${member.id}`} className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl ${member.avatarColor} flex items-center justify-center text-white font-bold text-xs shrink-0`}>
+                                {member.avatar}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-900 group-hover:text-indigo-700 transition leading-tight">
+                                  {member.name}
+                                </p>
+                                <p className="text-xs text-gray-400 leading-tight">{member.email || "—"}</p>
+                              </div>
+                            </Link>
+                          </td>
 
-                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-indigo-700 transition">{member.name}</h3>
+                          {/* Status */}
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge[member.status]}`}>
+                              {member.status}
+                            </span>
+                          </td>
 
-                    <div className="mt-1 mb-3 flex items-center gap-2">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${durationBadge[member.plan] || "bg-orange-100 text-orange-700"}`}>
-                        {member.plan}
-                      </span>
-                      {member.expiryDate && member.expiryDate !== "Not set" && (
-                        <span className="text-xs text-gray-400">· expires {member.expiryDate}</span>
-                      )}
-                    </div>
+                          {/* Plan */}
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${durationBadge[member.plan] || "bg-orange-100 text-orange-700"}`}>
+                              {member.plan}
+                            </span>
+                          </td>
 
-                    <div className="space-y-1.5 text-xs text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <FiPhone size={11} className="text-gray-400 shrink-0" />
-                        <span>{member.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <FiCalendar size={11} className="text-gray-400 shrink-0" />
-                        <span>
-                          {member.remainingDays > 0
-                            ? `${member.remainingDays} days left`
-                            : "Expired"}
-                        </span>
-                      </div>
-                    </div>
+                          {/* Phone */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 text-gray-500">
+                              <FiPhone size={11} className="text-gray-400 shrink-0" />
+                              <span>{member.phone}</span>
+                            </div>
+                          </td>
 
-                    <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-400">Visits</p>
-                        <p className="text-sm font-bold text-gray-800">{member.totalVisits}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-400">Paid</p>
-                        <p className="text-sm font-bold text-gray-800">₹{Number(member.totalPaid || 0).toLocaleString()}</p>
-                      </div>
-                      <FiChevronRight className="text-gray-300 group-hover:text-indigo-500 transition" size={16} />
-                    </div>
-                  </Link>
+                          {/* Expiry */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 text-gray-500">
+                              <FiCalendar size={11} className="text-gray-400 shrink-0" />
+                              <span>{member.expiryDate !== "Not set" ? member.expiryDate : "—"}</span>
+                            </div>
+                          </td>
 
-                  <button
-                    onClick={() => setRewardMember(member)}
-                    className="mt-3 flex items-center justify-center gap-1.5 w-full rounded-xl border border-indigo-200 bg-indigo-50 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
-                  >
-                    <FiGift size={13} /> Reward Availed
-                  </button>
+                          {/* Days Left — progress bar */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${member.remainingDays > 14
+                                      ? "bg-emerald-500"
+                                      : member.remainingDays > 5
+                                        ? "bg-amber-400"
+                                        : "bg-red-400"
+                                    }`}
+                                  style={{
+                                    width: `${Math.min(
+                                      100,
+                                      Math.round(
+                                        (member.remainingDays /
+                                          (member.plan === "1 Month" ? 30
+                                            : member.plan === "3 Months" ? 90
+                                              : member.plan === "6 Months" ? 180
+                                                : 30)) * 100
+                                      )
+                                    )}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className={`text-xs font-medium ${member.remainingDays > 0 ? "text-gray-600" : "text-red-500"
+                                }`}>
+                                {member.remainingDays > 0 ? `${member.remainingDays}d` : "Expired"}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Visits */}
+                          <td className="px-4 py-3 text-gray-700 font-medium">
+                            {member.totalVisits}
+                          </td>
+
+                          {/* Amount Paid */}
+                          <td className="px-4 py-3 font-semibold text-gray-800">
+                            ₹{Number(member.totalPaid || 0).toLocaleString()}
+                          </td>
+
+                          {/* Reward button */}
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => setRewardMember(member)}
+                              className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition whitespace-nowrap"
+                            >
+                              <FiGift size={12} /> Reward
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
           )}
         </main>
 
-        <footer className="text-center text-xs text-gray-400 py-6">© 2026 FitNation Gym CRM. All rights reserved.</footer>
       </div>
     </div>
   );

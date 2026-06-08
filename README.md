@@ -1,4 +1,4 @@
-# FitNation Gym CRM
+# OptimusGym CRM
 
 A modern, full-featured Gym Management System built with **Next.js 14**, **Tailwind CSS**, and **React Icons**.
 
@@ -33,7 +33,7 @@ http://localhost:3000
 ## Project Structure
 
 ```
-fitnation-gym-crm/
+Optimus-gym-crm/
 ├── app/
 │   ├── layout.jsx          # Root layout
 │   ├── globals.css         # Tailwind + global styles

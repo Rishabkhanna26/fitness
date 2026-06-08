@@ -238,9 +238,9 @@ export default function DashboardPage() {
         </header>
 
         <main className="px-4 sm:px-8 py-6 space-y-6 max-w-screen-2xl mx-auto w-full">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 gap-4">
             {stats.map((s) => (
-              <Card key={s.label} className="flex flex-col gap-3">
+              <Card key={s.label} className="flex flex-row gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ring-4 ${s.color} ${s.ring}`}>
                   <s.icon size={18} />
                 </div>
@@ -248,7 +248,7 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold text-gray-900">{s.value}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{s.label}</p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 self-end">
                   {s.up ? <FiTrendingUp className="text-green-500" size={13} /> : <FiTrendingDown className="text-red-400" size={13} />}
                   <span className={`text-xs font-semibold ${s.up ? "text-green-600" : "text-red-500"}`}>{s.change}</span>
                   <span className="text-xs text-gray-400">{s.sub}</span>
@@ -257,7 +257,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Card>
               <h2 className="text-base font-bold text-gray-800 mb-4">Attendance Overview</h2>
               <div className="grid grid-cols-2 gap-4">
@@ -357,7 +357,7 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Card>
               <h2 className="text-base font-bold text-gray-800 mb-4">Payments & Revenue</h2>
               <div className="grid grid-cols-3 gap-4">
@@ -452,7 +452,6 @@ export default function DashboardPage() {
           </div>
         </main>
 
-        <footer className="text-center text-xs text-gray-400 py-6">© 2026 FitNation Gym CRM. All rights reserved.</footer>
       </div>
     </div>
   );

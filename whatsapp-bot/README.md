@@ -1,6 +1,6 @@
-# FitNation WhatsApp Bot
+# Optimus WhatsApp Bot
 
-A WhatsApp chatbot for the FitNation Gym CRM that automatically answers questions about gym timing, membership plans, and diet plans using AI (OpenRouter).
+A WhatsApp chatbot for the Optimus Gym CRM that automatically answers questions about gym timing, membership plans, and diet plans using AI (OpenRouter).
 
 ## Setup
 
@@ -52,14 +52,14 @@ npm run dev
 
 You should see:
 ```
-🤖 FitNation WhatsApp Bot Service running on port 3001
+🤖 Optimus WhatsApp Bot Service running on port 3001
    State: idle
    OpenRouter: configured ✓
 ```
 
 ### 5. Login with Pairing Code
 
-- Go to Settings → WhatsApp Chatbot in your FitNation admin panel
+- Go to Settings → WhatsApp Chatbot in your Optimus admin panel
 - Enter your WhatsApp phone number (with country code, e.g. 919876543210)
 - You'll receive a **pairing code** on your WhatsApp app
 - Follow the "Link a Device" instructions on your phone
@@ -188,4 +188,4 @@ Request:
 
 ## License
 
-Part of FitNation Gym CRM
+Part of Optimus Gym CRM

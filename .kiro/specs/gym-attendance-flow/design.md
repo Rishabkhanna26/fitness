@@ -2,7 +2,7 @@
 
 ## Overview
 
-The gym-attendance-flow feature adds a QR-code-driven, two-step attendance system to the existing FitNation CRM. A permanent gym QR code encodes `/checkin?scan=1`. When a member scans it, the server sets a short-lived `qr_scanned` cookie to confirm a physical in-gym scan. The member either authenticates via phone (if not logged in) or is recognized from their existing `fit_session`, then receives a 4-character alphanumeric code valid for 2 minutes. They enter that code on their `/member` dashboard to mark attendance. On a milestone visit, a congratulations modal is shown with the unlocked loyalty reward.
+The gym-attendance-flow feature adds a QR-code-driven, two-step attendance system to the existing OptimusCRM. A permanent gym QR code encodes `/checkin?scan=1`. When a member scans it, the server sets a short-lived `qr_scanned` cookie to confirm a physical in-gym scan. The member either authenticates via phone (if not logged in) or is recognized from their existing `fit_session`, then receives a 4-character alphanumeric code valid for 2 minutes. They enter that code on their `/member` dashboard to mark attendance. On a milestone visit, a congratulations modal is shown with the unlocked loyalty reward.
 
 The design builds entirely on the existing stack (Next.js App Router, custom `supabaseFetch` wrapper, `fit_session` cookie, Tailwind CSS, react-icons) with no new dependencies.
 

@@ -110,7 +110,7 @@ export default function LoginPage() {
             <FiActivity className="text-white" size={18} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">FitNation Login</h1>
+            <h1 className="text-xl font-bold text-gray-900">Optimus Login</h1>
             <p className="text-sm text-gray-400">Access your gym CRM account</p>
           </div>
         </div>
@@ -162,7 +162,7 @@ export default function LoginPage() {
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     required
                     className="w-full rounded-xl border border-gray-200 py-3 pl-9 pr-3 text-sm outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                    placeholder="admin@fitnation.in"
+                    placeholder="admin@Optimus.in"
                   />
                 </div>
               </label>

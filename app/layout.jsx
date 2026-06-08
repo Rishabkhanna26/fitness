@@ -2,7 +2,7 @@ import "./globals.css";
 import AutoLoginProvider from "@/components/AutoLoginProvider";
 
 export const metadata = {
-  title: "FitNation Gym CRM",
+  title: "Optimus Gym CRM",
   description: "Modern Gym Management System",
 };
 

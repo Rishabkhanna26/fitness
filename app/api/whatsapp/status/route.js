@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const BOT_URL = process.env.WHATSAPP_BOT_URL || "http://localhost:3001";
-const BOT_SECRET = process.env.WHATSAPP_BOT_SECRET || "fitnation-bot-secret";
+const BOT_SECRET = process.env.WHATSAPP_BOT_SECRET || "Optimus-bot-secret";
 
 export async function GET() {
   try {

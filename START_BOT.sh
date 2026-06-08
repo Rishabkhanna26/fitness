@@ -1,7 +1,7 @@
 #!/bin/bash
 # WhatsApp Bot Startup Script
 
-echo "🚀 FitNation Gym CRM with WhatsApp Bot"
+echo "🚀 OptimusGym CRM with WhatsApp Bot"
 echo "======================================="
 echo ""
 echo "This script helps you start both services."

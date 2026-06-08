@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 const PORT               = process.env.BOT_PORT        || 3002;
-const BOT_SECRET         = process.env.BOT_SECRET      || "fitnation-bot-secret";
+const BOT_SECRET         = process.env.BOT_SECRET      || "Optimus-bot-secret";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_API_URL = process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODEL   = process.env.OPENROUTER_MODEL   || "openai/gpt-4o-mini";
@@ -88,7 +88,7 @@ async function getGymContext() {
     const pricing   = get("membership_pricing") || [];
     const dietPlans = get("diet_plans")         || [];
 
-    let ctx = "You are a helpful assistant for FitNation Gym, replying on WhatsApp. ";
+    let ctx = "You are a helpful assistant for OptimusGym, replying on WhatsApp. ";
     ctx += "Write like a real person — short sentences, casual but professional tone, no emojis. ";
     ctx += "Don't use bullet points or bold text. Just plain conversational replies. ";
     ctx += "Keep answers brief. If you don't know something specific, say so honestly and suggest they call or visit the gym. ";
@@ -151,13 +151,13 @@ async function getGymContext() {
 }
 
 function buildDefaultContext() {
-  return "You are a helpful assistant for FitNation Gym replying on WhatsApp. Write like a real person — short, casual, no emojis, no bullet points, plain text only. Only answer questions about the gym, fitness, diet, or membership. If you don't have specific info, tell them to visit or call the gym.";
+  return "You are a helpful assistant for OptimusGym replying on WhatsApp. Write like a real person — short, casual, no emojis, no bullet points, plain text only. Only answer questions about the gym, fitness, diet, or membership. If you don't have specific info, tell them to visit or call the gym.";
 }
 
 // ── OpenRouter AI ─────────────────────────────────────────────────────────────
 async function askAI(userJid, userMessage) {
   if (!OPENROUTER_API_KEY)
-    return "Hi! I'm the FitNation bot. OpenRouter API key not configured yet.";
+    return "Hi! I'm the Optimusbot. OpenRouter API key not configured yet.";
 
   const gymContext = await getGymContext();
   const history    = conversations.get(userJid) || [];
@@ -173,8 +173,8 @@ async function askAI(userJid, userMessage) {
       headers: {
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://fitnation.gym",
-        "X-Title":      "FitNation Gym Bot",
+        "HTTP-Referer": "https://Optimus.gym",
+        "X-Title":      "OptimusGym Bot",
       },
       body: JSON.stringify({ model: OPENROUTER_MODEL, messages, max_tokens: 400, temperature: 0.7 }),
     });
@@ -386,7 +386,7 @@ app.get("/health", (_req, res) => res.json({ ok: true, state: botState }));
 
 // ── Start server ──────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🤖 FitNation WhatsApp Bot running on port ${PORT}`);
+  console.log(`\n🤖 OptimusWhatsApp Bot running on port ${PORT}`);
   console.log(`   OpenRouter key:   ${OPENROUTER_API_KEY ? "configured ✓" : "NOT configured ✗"}`);
   console.log(`   OpenRouter URL:   ${OPENROUTER_API_URL}`);
   console.log(`   OpenRouter model: ${OPENROUTER_MODEL}`);

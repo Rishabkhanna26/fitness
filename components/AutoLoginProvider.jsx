@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const STORAGE_KEY = "fitnation_auto_login";
+const STORAGE_KEY = "Optimus_auto_login";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 export function getAutoLoginData() {
