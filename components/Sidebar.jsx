@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   FiGrid,
   FiUsers,
@@ -10,18 +11,39 @@ import {
   FiSettings,
   FiActivity,
   FiBarChart2,
+  FiLogOut,
 } from "react-icons/fi";
+import { getClientSession } from "@/lib/session";
 
-const navItems = [
+const adminNavItems = [
   { label: "Dashboard", href: "/", icon: FiGrid },
   { label: "Members", href: "/members", icon: FiUsers },
+  { label: "Attendance", href: "/attendance", icon: FiCalendar },
+  { label: "Settings", href: "/settings", icon: FiSettings },
+];
+
+const memberNavItems = [
+  { label: "My Profile", href: "/member", icon: FiUsers },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    setSession(getClientSession());
+  }, []);
+
+  const navItems = session?.role === "member" ? memberNavItems : adminNavItems;
+
+  async function logout() {
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    const data = await response.json();
+    window.location.href = data.redirectTo || "/login";
+  }
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-60 bg-white border-r border-gray-100 flex flex-col z-20 shadow-sm">
+    <aside className="fixed left-0 top-0 hidden h-full w-60 bg-white border-r border-gray-100 flex-col z-20 shadow-sm lg:flex">
       <div className="px-6 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -57,12 +79,19 @@ export default function Sidebar() {
       <div className="px-5 py-4 border-t border-gray-100">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700">
-            AD
+            {session?.role === "member" ? "MB" : "AD"}
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-800">Admin</p>
-            <p className="text-[10px] text-gray-400">admin@fitnation.in</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-gray-800">{session?.name || "Admin"}</p>
+            <p className="truncate text-[10px] text-gray-400">{session?.email || "admin@fitnation.in"}</p>
           </div>
+          <button
+            onClick={logout}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+            title="Logout"
+          >
+            <FiLogOut size={14} />
+          </button>
         </div>
       </div>
     </aside>

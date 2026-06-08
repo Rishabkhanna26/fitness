@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import { members as fallbackMembers } from "@/lib/data";
 import {
   FiUsers, FiCheckCircle, FiDollarSign, FiCreditCard,
   FiUserPlus, FiCalendar, FiTrendingUp, FiTrendingDown,
@@ -120,11 +121,59 @@ function Card({ children, className = "" }) {
 }
 
 export default function DashboardPage() {
+  const [members, setMembers] = useState(fallbackMembers);
+
+  useEffect(() => {
+    fetch("/api/members")
+      .then((response) => response.json())
+      .then((data) => setMembers(data.members || fallbackMembers))
+      .catch(() => setMembers(fallbackMembers));
+  }, []);
+
+  const stats = useMemo(() => {
+    const activeMembers = members.filter((member) => member.status === "Active");
+    const monthlyRevenue = members.reduce((sum, member) => sum + Number(member.totalPaid || 0), 0);
+    const pending = members.reduce((sum, member) => sum + Number(member.outstanding || 0), 0);
+    const expiring = members.filter((member) => Number(member.remainingDays || 0) <= 30).length;
+
+    return [
+      { label: "Total Members", value: members.length, change: "+0%", up: true, sub: "live records", icon: FiUsers, color: "bg-blue-50 text-blue-500", ring: "ring-blue-100" },
+      { label: "Today's Attendance", value: activeMembers.reduce((sum, member) => sum + Number(member.attendanceInsights?.thisMonth || 0), 0), change: "+0%", up: true, sub: "this month visits", icon: FiCheckCircle, color: "bg-green-50 text-green-500", ring: "ring-green-100" },
+      { label: "Monthly Revenue", value: `Rs ${monthlyRevenue.toLocaleString()}`, change: "+0%", up: true, sub: "from payments", icon: FiDollarSign, color: "bg-yellow-50 text-yellow-500", ring: "ring-yellow-100" },
+      { label: "Pending Payments", value: `Rs ${pending.toLocaleString()}`, change: "-0%", up: false, sub: "outstanding", icon: FiCreditCard, color: "bg-red-50 text-red-400", ring: "ring-red-100" },
+      { label: "New Members", value: members.slice(0, 5).length, change: "+0%", up: true, sub: "recent records", icon: FiUserPlus, color: "bg-purple-50 text-purple-500", ring: "ring-purple-100" },
+      { label: "Expiring Soon", value: expiring, change: "-0%", up: false, sub: "next 30 days", icon: FiCalendar, color: "bg-orange-50 text-orange-400", ring: "ring-orange-100" },
+    ];
+  }, [members]);
+
+  const todayAttendance = members
+    .filter((member) => member.attendanceHistory?.[0]?.status === "Present")
+    .slice(0, 5)
+    .map((member) => ({ name: member.name, plan: member.plan }));
+  const inactiveMembers = members
+    .filter((member) => Number(member.attendanceInsights?.daysSince || 0) >= 5)
+    .slice(0, 3)
+    .map((member) => ({ name: member.name, lastVisit: member.lastVisit, daysAbsent: member.attendanceInsights.daysSince }));
+  const expiryAlerts = members
+    .filter((member) => Number(member.remainingDays || 0) <= 30)
+    .slice(0, 4)
+    .map((member) => ({ name: member.name, plan: member.plan, expiry: member.expiryDate, days: member.remainingDays }));
+  const planData = ["Premium", "Standard", "Basic"].map((plan, index) => ({
+    label: plan,
+    count: members.filter((member) => member.plan === plan).length,
+    color: ["#6366f1", "#22c55e", "#f59e0b"][index],
+  }));
+  const paymentStatus = members
+    .filter((member) => Number(member.outstanding || 0) > 0)
+    .slice(0, 4)
+    .map((member) => ({ name: member.name, amount: `Rs ${Number(member.outstanding || 0).toLocaleString()}`, due: member.expiryDate }));
+  const newMembers = members.slice(0, 5).map((member) => ({ name: member.name, joined: member.joinDate, plan: member.plan }));
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="ml-60 flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <div className="lg:ml-60 flex-1 flex flex-col">
+        <header className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:items-center justify-between sticky top-0 z-10 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
             <p className="text-sm text-gray-400 mt-0.5">Overview of your gym</p>
@@ -134,7 +183,7 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        <main className="px-8 py-6 space-y-6 max-w-screen-2xl mx-auto w-full">
+        <main className="px-4 sm:px-8 py-6 space-y-6 max-w-screen-2xl mx-auto w-full">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {stats.map((s) => (
               <Card key={s.label} className="flex flex-col gap-3">

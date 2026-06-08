@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
-import { members } from "@/lib/data";
+import { members as fallbackMembers } from "@/lib/data";
 import {
   FiSearch, FiFilter, FiPlus, FiUser,
   FiPhone, FiCalendar, FiChevronRight,
@@ -24,6 +24,14 @@ export default function MembersPage() {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [members, setMembers] = useState(fallbackMembers);
+
+  useEffect(() => {
+    fetch("/api/members")
+      .then((response) => response.json())
+      .then((data) => setMembers(data.members || fallbackMembers))
+      .catch(() => setMembers(fallbackMembers));
+  }, []);
 
   const filtered = members.filter((m) => {
     const matchSearch =
@@ -38,20 +46,20 @@ export default function MembersPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="ml-60 flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <div className="lg:ml-60 flex-1 flex flex-col">
+        <header className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:items-center justify-between sticky top-0 z-10 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Members</h1>
             <p className="text-sm text-gray-400 mt-0.5">Manage all gym members</p>
           </div>
-          <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2.5 text-sm font-semibold transition shadow-sm shadow-indigo-200">
+          <Link href="/register" className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2.5 text-sm font-semibold transition shadow-sm shadow-indigo-200">
             <FiPlus size={16} />
             Add Member
-          </button>
+          </Link>
         </header>
 
-        <main className="px-8 py-6 max-w-screen-2xl mx-auto w-full">
-          <div className="grid grid-cols-4 gap-4 mb-6">
+        <main className="px-4 sm:px-8 py-6 max-w-screen-2xl mx-auto w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             {[
               { label: "Total Members", value: members.length, color: "text-indigo-600", bg: "bg-indigo-50" },
               { label: "Active Members", value: members.filter((m) => m.status === "Active").length, color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -65,7 +73,7 @@ export default function MembersPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex items-center gap-4 flex-wrap">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex items-start sm:items-center gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
               <input

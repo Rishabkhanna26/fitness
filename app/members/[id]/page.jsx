@@ -1,9 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { members } from "@/lib/data";
+import { members as fallbackMembers } from "@/lib/data";
 import {
   FiArrowLeft, FiEdit2, FiCalendar, FiMoreVertical,
   FiUser, FiPhone, FiMail, FiMapPin, FiAlertCircle,
@@ -58,13 +58,28 @@ function InfoRow({ icon: Icon, label, value }) {
 
 export default function MemberDetailPage({ params }) {
   const { id } = params;
-  const member = members.find((m) => m.id === id);
-  if (!member) notFound();
+  const [member, setMember] = useState(fallbackMembers.find((m) => m.id === id));
+
+  useEffect(() => {
+    fetch(`/api/members/${id}`)
+      .then((response) => response.json())
+      .then((data) => setMember(data.member || fallbackMembers.find((m) => m.id === id)))
+      .catch(() => setMember(fallbackMembers.find((m) => m.id === id)));
+  }, [id]);
+
+  if (!member) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="lg:ml-60 flex-1 p-8 text-sm text-gray-500">Member not found.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="ml-60 flex-1 flex flex-col">
+      <div className="lg:ml-60 flex-1 flex flex-col">
         <header className="bg-white border-b border-gray-100 px-8 py-4 sticky top-0 z-10 shadow-sm">
           <Link
             href="/members"
@@ -102,10 +117,10 @@ export default function MemberDetailPage({ params }) {
           </div>
         </header>
 
-        <main className="px-8 py-6 space-y-8 max-w-screen-xl mx-auto w-full">
+        <main className="px-4 sm:px-8 py-6 space-y-8 max-w-screen-xl mx-auto w-full">
           <section>
             <SectionTitle number="1" title="Member Overview" />
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <InfoCard>
                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">Personal Information</p>
                 <InfoRow icon={FiUser} label="Full Name" value={member.name} />
@@ -195,7 +210,7 @@ export default function MemberDetailPage({ params }) {
 
           <section>
             <SectionTitle number="2" title="Membership & Services" />
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <InfoCard>
                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-4">Current Plan</p>
                 <div className="border border-gray-100 rounded-xl p-4">
@@ -268,7 +283,7 @@ export default function MemberDetailPage({ params }) {
 
           <section>
             <SectionTitle number="3" title="Attendance & Payment History" />
-            <div className="grid grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
               <InfoCard>
                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-4">Attendance History</p>
                 <table className="w-full text-sm">
