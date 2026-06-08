@@ -6,30 +6,44 @@ import Sidebar from "@/components/Sidebar";
 import {
   FiSearch, FiFilter, FiPlus, FiUser,
   FiPhone, FiCalendar, FiChevronRight, FiX,
-  FiMail, FiGift, FiCheck,
+  FiMail, FiGift, FiCheck, FiDollarSign, FiClock,
 } from "react-icons/fi";
 
-const planBadge = {
-  Premium: "bg-indigo-100 text-indigo-700",
-  Standard: "bg-green-100 text-green-700",
-  Basic: "bg-yellow-100 text-yellow-700",
+const DURATIONS = ["1 Month", "3 Months", "6 Months", "Custom"];
+
+const durationBadge = {
+  "1 Month":   "bg-blue-100 text-blue-700",
+  "3 Months":  "bg-indigo-100 text-indigo-700",
+  "6 Months":  "bg-purple-100 text-purple-700",
+  "Custom":    "bg-orange-100 text-orange-700",
 };
 
 const statusBadge = {
-  Active: "bg-emerald-100 text-emerald-700",
+  Active:   "bg-emerald-100 text-emerald-700",
   Inactive: "bg-red-100 text-red-500",
 };
 
 function AddMemberModal({ onClose, onAdded }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    duration: "1 Month",
+    customDays: "",
+    amountPaid: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
-      setError("All fields are required.");
+    if (!form.name.trim() || !form.phone.trim()) {
+      setError("Name and phone are required.");
+      return;
+    }
+    if (form.duration === "Custom" && (!form.customDays || Number(form.customDays) < 1)) {
+      setError("Enter a valid number of days for custom duration.");
       return;
     }
     setLoading(true);
@@ -52,11 +66,11 @@ function AddMemberModal({ onClose, onAdded }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Add New Member</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Enter basic details to register</p>
+            <p className="text-xs text-gray-400 mt-0.5">Enter details to register</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
             <FiX size={20} />
@@ -64,6 +78,9 @@ function AddMemberModal({ onClose, onAdded }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Personal Details */}
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Personal Details</p>
+
           <label className="block">
             <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Full Name</span>
             <div className="relative">
@@ -77,8 +94,9 @@ function AddMemberModal({ onClose, onAdded }) {
               />
             </div>
           </label>
+
           <label className="block">
-            <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Email Address</span>
+            <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Email Address (optional)</span>
             <div className="relative">
               <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
@@ -90,6 +108,7 @@ function AddMemberModal({ onClose, onAdded }) {
               />
             </div>
           </label>
+
           <label className="block">
             <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Phone Number</span>
             <div className="relative">
@@ -103,6 +122,59 @@ function AddMemberModal({ onClose, onAdded }) {
               />
             </div>
           </label>
+
+          {/* Membership */}
+          <div className="pt-1">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Membership Duration</p>
+            <div className="grid grid-cols-4 gap-2">
+              {DURATIONS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setForm({ ...form, duration: d })}
+                  className={`py-2 rounded-xl text-xs font-bold border-2 transition ${
+                    form.duration === d
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                      : "border-gray-100 text-gray-500 hover:border-gray-300"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+            {form.duration === "Custom" && (
+              <div className="mt-3 relative">
+                <FiClock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Number of days"
+                  value={form.customDays}
+                  onChange={(e) => setForm({ ...form, customDays: e.target.value })}
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Payment */}
+          <div className="pt-1">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Payment</p>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Amount Paid (₹)</span>
+              <div className="relative">
+                <FiDollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 1500"
+                  value={form.amountPaid}
+                  onChange={(e) => setForm({ ...form, amountPaid: e.target.value })}
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300"
+                />
+              </div>
+            </label>
+          </div>
 
           {error && <p className="text-xs font-semibold text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
@@ -220,7 +292,7 @@ function RewardModal({ member, offers, onClose, onAvailed }) {
 
 export default function MembersPage() {
   const [search, setSearch] = useState("");
-  const [planFilter, setPlanFilter] = useState("All");
+  const [durationFilter, setDurationFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [members, setMembers] = useState([]);
   const [offers, setOffers] = useState([]);
@@ -252,9 +324,14 @@ export default function MembersPage() {
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase()) ||
       m.phone.includes(search);
-    const matchPlan = planFilter === "All" || m.plan === planFilter;
+    // Custom filter: match any plan that isn't 1/3/6 Month
+    const matchDuration =
+      durationFilter === "All" ||
+      (durationFilter === "Custom"
+        ? !["1 Month", "3 Months", "6 Months"].includes(m.plan)
+        : m.plan === durationFilter);
     const matchStatus = statusFilter === "All" || m.status === statusFilter;
-    return matchSearch && matchPlan && matchStatus;
+    return matchSearch && matchDuration && matchStatus;
   });
 
   return (
@@ -275,7 +352,7 @@ export default function MembersPage() {
         />
       )}
       <div className="lg:ml-60 flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:items-center justify-between sticky top-0 z-10 shadow-sm">
+        <header className="bg-white border-b border-gray-100 pl-14 pr-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:items-center justify-between sticky top-0 z-10 shadow-sm lg:pl-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Members</h1>
             <p className="text-sm text-gray-400 mt-0.5">Manage all gym members</p>
@@ -290,12 +367,13 @@ export default function MembersPage() {
         </header>
 
         <main className="px-4 sm:px-8 py-6 max-w-screen-2xl mx-auto w-full">
+          {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             {[
-              { label: "Total Members", value: members.length, color: "text-indigo-600", bg: "bg-indigo-50" },
-              { label: "Active Members", value: members.filter((m) => m.status === "Active").length, color: "text-emerald-600", bg: "bg-emerald-50" },
-              { label: "Inactive Members", value: members.filter((m) => m.status === "Inactive").length, color: "text-red-500", bg: "bg-red-50" },
-              { label: "Premium Members", value: members.filter((m) => m.plan === "Premium").length, color: "text-purple-600", bg: "bg-purple-50" },
+              { label: "Total Members",    value: members.length,                                          color: "text-indigo-600",  bg: "bg-indigo-50"  },
+              { label: "Active Members",   value: members.filter((m) => m.status === "Active").length,     color: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "Inactive Members", value: members.filter((m) => m.status === "Inactive").length,   color: "text-red-500",     bg: "bg-red-50"     },
+              { label: "Custom Plans",     value: members.filter((m) => !["1 Month","3 Months","6 Months"].includes(m.plan)).length, color: "text-orange-600", bg: "bg-orange-50" },
             ].map((s) => (
               <div key={s.label} className={`${s.bg} rounded-2xl p-4 border border-white`}>
                 <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -304,7 +382,8 @@ export default function MembersPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex items-start sm:items-center gap-4 flex-wrap">
+          {/* Filters */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex flex-wrap items-start sm:items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
               <input
@@ -315,28 +394,42 @@ export default function MembersPage() {
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300"
               />
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-2 flex-wrap">
               <FiFilter className="text-gray-400" size={14} />
-              <span className="text-xs text-gray-500 font-medium">Plan:</span>
-              {["All", "Premium", "Standard", "Basic"].map((p) => (
-                <button key={p} onClick={() => setPlanFilter(p)}
+              <span className="text-xs text-gray-500 font-medium">Duration:</span>
+              {["All", "1 Month", "3 Months", "6 Months", "Custom"].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDurationFilter(d)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    planFilter === p ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}>{p}</button>
+                    durationFilter === d ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {d}
+                </button>
               ))}
             </div>
+
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 font-medium">Status:</span>
               {["All", "Active", "Inactive"].map((s) => (
-                <button key={s} onClick={() => setStatusFilter(s)}
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                     statusFilter === s ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}>{s}</button>
+                  }`}
+                >
+                  {s}
+                </button>
               ))}
             </div>
+
             <span className="text-xs text-gray-400 ml-auto">{filtered.length} members found</span>
           </div>
 
+          {/* Member Cards */}
           {loading ? (
             <div className="text-center py-20 text-gray-400">
               <p className="text-sm">Loading members...</p>
@@ -349,7 +442,10 @@ export default function MembersPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((member) => (
-                <div key={member.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-indigo-100 transition-all group flex flex-col">
+                <div
+                  key={member.id}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-indigo-100 transition-all group flex flex-col"
+                >
                   <Link href={`/members/${member.id}`} className="flex-1">
                     <div className="flex items-start justify-between mb-4">
                       <div className={`w-12 h-12 rounded-xl ${member.avatarColor} flex items-center justify-center text-white font-bold text-sm`}>
@@ -361,10 +457,14 @@ export default function MembersPage() {
                     </div>
 
                     <h3 className="font-bold text-gray-900 text-sm group-hover:text-indigo-700 transition">{member.name}</h3>
-                    <div className="mt-1 mb-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${planBadge[member.plan] || "bg-gray-100 text-gray-600"}`}>
-                        {member.plan} Plan
+
+                    <div className="mt-1 mb-3 flex items-center gap-2">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${durationBadge[member.plan] || "bg-orange-100 text-orange-700"}`}>
+                        {member.plan}
                       </span>
+                      {member.expiryDate && member.expiryDate !== "Not set" && (
+                        <span className="text-xs text-gray-400">· expires {member.expiryDate}</span>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 text-xs text-gray-500">
@@ -374,13 +474,17 @@ export default function MembersPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <FiCalendar size={11} className="text-gray-400 shrink-0" />
-                        <span>Expires: {member.expiryDate}</span>
+                        <span>
+                          {member.remainingDays > 0
+                            ? `${member.remainingDays} days left`
+                            : "Expired"}
+                        </span>
                       </div>
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between">
                       <div>
-                        <p className="text-xs text-gray-400">Total Visits</p>
+                        <p className="text-xs text-gray-400">Visits</p>
                         <p className="text-sm font-bold text-gray-800">{member.totalVisits}</p>
                       </div>
                       <div className="text-right">

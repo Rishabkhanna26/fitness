@@ -9,10 +9,20 @@ export async function GET() {
 
 export async function POST(request) {
   const body = await request.json();
-  const rows = [
-    { key: "offer", value: body.offer },
-    { key: "interval_date", value: body.intervalDate },
-  ];
+
+  // Support both the legacy { intervalDate } shape and the new generic { key, value } shape
+  let rows;
+  if (body.key !== undefined) {
+    // New generic: { key: "gym_timing", value: {...} }
+    rows = [{ key: body.key, value: body.value }];
+  } else {
+    // Legacy shape
+    rows = [
+      { key: "offer", value: body.offer },
+      { key: "interval_date", value: body.intervalDate },
+    ].filter((r) => r.value !== undefined);
+  }
+
   const settings = await upsertSettings(rows);
   return NextResponse.json({ settings });
 }

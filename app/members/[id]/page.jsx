@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import { members as fallbackMembers } from "@/lib/data";
@@ -9,6 +10,7 @@ import {
   FiUser, FiPhone, FiMail, FiMapPin, FiAlertCircle,
   FiCheckCircle, FiXCircle, FiClock, FiDollarSign,
   FiCreditCard, FiBarChart2, FiStar, FiEdit,
+  FiTrash2, FiX, FiSave, FiPlusCircle,
 } from "react-icons/fi";
 
 const planBadge = {
@@ -25,6 +27,333 @@ const tagColors = [
   "bg-rose-100 text-rose-700",
   "bg-teal-100 text-teal-700",
 ];
+
+function EditMemberModal({ member, onClose, onSaved }) {
+  const [activeTab, setActiveTab] = useState("details"); // "details" | "payment"
+  const [form, setForm] = useState({
+    name: member.name || "",
+    email: member.email || "",
+    phone: member.phone || "",
+    address: member.address === "Not added" ? "" : (member.address || ""),
+    emergency_contact: member.emergency === "Not added" ? "" : (member.emergency || ""),
+    status: member.status || "Active",
+  });
+  const [payment, setPayment] = useState({
+    amount: "",
+    outstanding: "",
+    method: "Cash",
+    notes: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [paymentSuccess, setPaymentSuccess] = useState("");
+
+  async function handleDetailsSave(e) {
+    e.preventDefault();
+    setError("");
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
+      setError("Name, email and phone are required.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update member.");
+      onSaved(data.member);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePaymentSave(e) {
+    e.preventDefault();
+    setError(""); setPaymentSuccess("");
+    if (!payment.amount || Number(payment.amount) <= 0) {
+      setError("Enter a valid payment amount.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const body = {
+        payment_amount: Number(payment.amount),
+        outstanding: payment.outstanding !== "" ? Number(payment.outstanding) : undefined,
+        payment_method: payment.method,
+        payment_notes: payment.notes,
+      };
+      const res = await fetch(`/api/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to record payment.");
+      onSaved(data.member);
+      setPaymentSuccess(`Payment of ₹${Number(payment.amount).toLocaleString()} recorded successfully.`);
+      setPayment({ amount: "", outstanding: "", method: "Cash", notes: "" });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const tabs = [
+    { id: "details", label: "Member Details" },
+    { id: "payment", label: "Payment" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Edit Member</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{member.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+            <FiX size={20} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 px-6 pb-0 shrink-0">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => { setActiveTab(t.id); setError(""); setPaymentSuccess(""); }}
+              className={`px-4 py-2 text-sm font-semibold rounded-t-xl border-b-2 transition-all ${
+                activeTab === t.id
+                  ? "border-indigo-600 text-indigo-600 bg-indigo-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="border-b border-gray-100 shrink-0" />
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+
+          {/* ── Details Tab ── */}
+          {activeTab === "details" && (
+            <form id="details-form" onSubmit={handleDetailsSave} className="space-y-4">
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Full Name</span>
+                <div className="relative">
+                  <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="text" value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Email Address</span>
+                <div className="relative">
+                  <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="email" value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Phone Number</span>
+                <div className="relative">
+                  <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="tel" value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Address</span>
+                <div className="relative">
+                  <FiMapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="text" placeholder="Optional" value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Emergency Contact</span>
+                <div className="relative">
+                  <FiAlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="text" placeholder="Optional" value={form.emergency_contact}
+                    onChange={(e) => setForm({ ...form, emergency_contact: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Status</span>
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </label>
+            </form>
+          )}
+
+          {/* ── Payment Tab ── */}
+          {activeTab === "payment" && (
+            <form id="payment-form" onSubmit={handlePaymentSave} className="space-y-4">
+              {/* Current balance summary */}
+              <div className="grid grid-cols-2 gap-3 mb-2">
+                <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
+                  <p className="text-xs text-green-500 font-semibold mb-0.5">Total Paid</p>
+                  <p className="text-lg font-black text-green-700">₹{Number(member.totalPaid || 0).toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl bg-orange-50 border border-orange-100 px-4 py-3">
+                  <p className="text-xs text-orange-500 font-semibold mb-0.5">Outstanding</p>
+                  <p className="text-lg font-black text-orange-700">₹{Number(member.outstanding || 0).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Record New Payment</p>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Amount Paid (₹) <span className="text-red-400">*</span></span>
+                <div className="relative">
+                  <FiDollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="number" min="1" placeholder="e.g. 1500"
+                    value={payment.amount}
+                    onChange={(e) => setPayment({ ...payment, amount: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Update Outstanding Balance (₹)</span>
+                <div className="relative">
+                  <FiCreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input type="number" min="0" placeholder={`Current: ₹${Number(member.outstanding || 0).toLocaleString()}`}
+                    value={payment.outstanding}
+                    onChange={(e) => setPayment({ ...payment, outstanding: e.target.value })}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300" />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Leave blank to keep current outstanding amount.</p>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Payment Method</span>
+                <select value={payment.method} onChange={(e) => setPayment({ ...payment, method: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300">
+                  <option>Cash</option>
+                  <option>UPI</option>
+                  <option>Card</option>
+                  <option>Bank Transfer</option>
+                  <option>Other</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500 mb-1.5 block">Notes (optional)</span>
+                <textarea rows={2} placeholder="e.g. Renewal payment for June"
+                  value={payment.notes}
+                  onChange={(e) => setPayment({ ...payment, notes: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 resize-none" />
+              </label>
+
+              {paymentSuccess && (
+                <div className="flex items-center gap-2 rounded-xl bg-green-50 border border-green-100 px-4 py-3">
+                  <FiCheckCircle size={15} className="text-green-600 shrink-0" />
+                  <p className="text-sm font-semibold text-green-700">{paymentSuccess}</p>
+                </div>
+              )}
+            </form>
+          )}
+
+          {error && <p className="text-xs font-semibold text-red-500 bg-red-50 rounded-lg px-3 py-2 mt-3">{error}</p>}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
+          <button type="button" onClick={onClose}
+            className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form={activeTab === "details" ? "details-form" : "payment-form"}
+            disabled={loading}
+            className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <FiSave size={14} />
+            {loading ? "Saving..." : activeTab === "details" ? "Save Changes" : "Record Payment"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({ member, onClose, onDeleted }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleDelete() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/members/${member.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete member.");
+      onDeleted();
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Delete Member</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+            <FiX size={20} />
+          </button>
+        </div>
+        <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl mb-5">
+          <FiTrash2 className="text-red-500 shrink-0 mt-0.5" size={18} />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Are you sure?</p>
+            <p className="text-xs text-gray-500 mt-1">
+              This will permanently delete <span className="font-bold text-gray-800">{member.name}</span> and all their data. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+        {error && <p className="text-xs font-semibold text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">{error}</p>}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={loading}
+            className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-600 transition disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <FiTrash2 size={14} />
+            {loading ? "Deleting..." : "Delete Member"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SectionTitle({ number, title }) {
   return (
@@ -57,8 +386,11 @@ function InfoRow({ icon: Icon, label, value }) {
 }
 
 export default function MemberDetailPage({ params }) {
-  const { id } = params;
+  const { id } = use(params);
+  const router = useRouter();
   const [member, setMember] = useState(fallbackMembers.find((m) => m.id === id));
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     fetch(`/api/members/${id}`)
@@ -79,8 +411,22 @@ export default function MemberDetailPage({ params }) {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
+      {showEditModal && (
+        <EditMemberModal
+          member={member}
+          onClose={() => setShowEditModal(false)}
+          onSaved={(updated) => setMember(updated)}
+        />
+      )}
+      {showDeleteModal && (
+        <DeleteConfirmModal
+          member={member}
+          onClose={() => setShowDeleteModal(false)}
+          onDeleted={() => router.push("/members")}
+        />
+      )}
       <div className="lg:ml-60 flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-100 px-8 py-4 sticky top-0 z-10 shadow-sm">
+        <header className="bg-white border-b border-gray-100 pl-14 pr-4 sm:px-8 py-4 sticky top-0 z-10 shadow-sm lg:pl-8">
           <Link
             href="/members"
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition mb-3 w-fit"
@@ -102,16 +448,23 @@ export default function MemberDetailPage({ params }) {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+              >
                 <FiEdit2 size={14} />
                 Edit Member
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-2 border border-red-200 rounded-xl px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-50 transition"
+              >
+                <FiTrash2 size={14} />
+                Delete
               </button>
               <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2 text-sm font-semibold transition shadow-sm shadow-indigo-200">
                 <FiCalendar size={14} />
                 Mark Attendance
-              </button>
-              <button className="w-9 h-9 border border-gray-200 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-50 transition">
-                <FiMoreVertical size={15} />
               </button>
             </div>
           </div>

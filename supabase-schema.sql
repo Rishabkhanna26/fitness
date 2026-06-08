@@ -47,6 +47,17 @@ create table if not exists attendance (
   unique(member_id, attendance_date)
 );
 
+create table if not exists admin_attendance (
+  id uuid primary key default gen_random_uuid(),
+  admin_email text not null,
+  admin_name text not null,
+  attendance_date date not null default current_date,
+  status text not null default 'Present' check (status in ('Present', 'Absent')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(admin_email, attendance_date)
+);
+
 create table if not exists payments (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references members(id) on delete cascade,
@@ -99,3 +110,25 @@ insert into settings (key, value)
 values
   ('interval_date', '{"renewal_reminder_days":7,"attendance_alert_days":5}')
 on conflict (key) do nothing;
+
+
+create table if not exists attendance_codes (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references members(id) on delete cascade,
+  code text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used boolean not null default false
+);
+
+create index if not exists idx_attendance_codes_code on attendance_codes(code);
+
+create index if not exists idx_admin_attendance_email_date on admin_attendance(admin_email, attendance_date desc);
+
+
+alter table loyalty_offers 
+  drop constraint loyalty_offers_interval_unit_check;
+
+alter table loyalty_offers 
+  add constraint loyalty_offers_interval_unit_check 
+  check (interval_unit in ('days', 'months', 'years', 'visits'));

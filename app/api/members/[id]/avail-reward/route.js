@@ -9,7 +9,8 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "offer_id is required." }, { status: 400 });
   }
   try {
-    const reward = await availMemberReward(params.id, body.offer_id);
+    const { id } = await params;
+    const reward = await availMemberReward(id, body.offer_id);
     return NextResponse.json({ reward });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });

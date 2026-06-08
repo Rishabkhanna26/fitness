@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ADMIN_CREDENTIALS } from "@/lib/adminCredentials";
 import { encodeSession, SESSION_COOKIE } from "@/lib/session";
-import { findMemberForLogin } from "@/lib/supabase";
+import { findMemberByPhone } from "@/lib/supabase";
 
 export async function POST(request) {
   const body = await request.json();
@@ -24,9 +24,12 @@ export async function POST(request) {
     return response;
   }
 
-  const member = await findMemberForLogin(body.identifier || "", body.phone || "");
+  const member = await findMemberByPhone(body.phone || body.identifier || "");
   if (!member) {
-    return NextResponse.json({ error: "Member not found. Check name/email and phone number." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Member not found. Create a new record to continue.", code: "member_not_found" },
+      { status: 404 }
+    );
   }
 
   const response = NextResponse.json({ redirectTo: "/member" });

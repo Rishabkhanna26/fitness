@@ -7,7 +7,7 @@ export default function ReportsPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <div className="lg:ml-60 flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 sticky top-0 z-10 shadow-sm">
+        <header className="bg-white border-b border-gray-100 pl-14 pr-4 sm:px-8 py-4 sticky top-0 z-10 shadow-sm lg:pl-8">
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-sm text-gray-400 mt-0.5">View analytics and performance charts.</p>
         </header>
