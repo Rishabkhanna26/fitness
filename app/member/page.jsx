@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import {
   FiAlertCircle, FiAlertTriangle, FiCalendar, FiCheckCircle,
@@ -53,7 +53,14 @@ function RewardCard({ member, offers }) {
     offer.offer_type === "percentage"
       ? `${offer.amount}% off your renewal`
       : `₹${offer.amount} off your renewal`;
-  const intervalText = `${offer.interval_value} ${offer.interval_unit}`;
+
+  // Normalize unit label — always use singular if value is 1, plural otherwise
+  const unitLabel = (() => {
+    const u = (offer.interval_unit || "").replace(/s$/, ""); // strip trailing 's' to get singular
+    const v = Number(offer.interval_value);
+    return v === 1 ? u : u + "s";
+  })();
+  const intervalText = `${offer.interval_value} ${unitLabel}`;
 
   let daysUntil = null;
   let nextDueText = null;
@@ -107,103 +114,42 @@ function RewardCard({ member, offers }) {
   );
 }
 
-// ── Attendance Code Input ──────────────────────────────────────────────────────
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-
+// ── Attendance Section (always visible) ──────────────────────────────────────
 function AttendanceSection({ memberId, onMarked }) {
-  const [hasQr, setHasQr] = useState(null); // null=loading, false=no QR, true=has QR
-  const [markedToday, setMarkedToday] = useState(false);
-  const [activeCode, setActiveCode] = useState(null);   // { code, expiresAt }
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [codeExpired, setCodeExpired] = useState(false);
-  const [input, setInput] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const timerRef = useRef(null);
+  const [markedToday, setMarkedToday] = useState(null); // null = loading
+  const [marking, setMarking]         = useState(false);
+  const [success, setSuccess]         = useState(false);
+  const [error, setError]             = useState("");
 
-  // Check QR flag + today's attendance + active code
   useEffect(() => {
-    async function init() {
-      // 1. QR scan check
-      const qrRes = await fetch("/api/attendance/check-qr").then((r) => r.json()).catch(() => ({ allowed: false }));
-      if (!qrRes.allowed) {
-        setHasQr(false);
-        return;
-      }
-      setHasQr(true);
-
-      // 2. Today's attendance
-      const todayRes = await fetch("/api/attendance/today").then((r) => r.json()).catch(() => ({ marked: false }));
-      if (todayRes.marked) {
-        setMarkedToday(true);
-        return;
-      }
-
-      // 3. Active code for this member
-      const codeRes = await fetch("/api/attendance/active-code").then((r) => r.json()).catch(() => ({}));
-      if (codeRes.code) {
-        setActiveCode({ code: codeRes.code, expiresAt: codeRes.expiresAt });
-      }
-    }
-    init();
+    fetch("/api/attendance/today")
+      .then((r) => r.json())
+      .then((d) => setMarkedToday(!!d.marked))
+      .catch(() => setMarkedToday(false));
   }, []);
 
-  // Countdown for active code
-  useEffect(() => {
-    if (!activeCode?.expiresAt) return;
-    clearInterval(timerRef.current);
-
-    function tick() {
-      const diff = Math.max(0, Math.floor((new Date(activeCode.expiresAt) - Date.now()) / 1000));
-      setSecondsLeft(diff);
-      if (diff === 0) {
-        setCodeExpired(true);
-        clearInterval(timerRef.current);
-      }
-    }
-    tick();
-    timerRef.current = setInterval(tick, 1000);
-    return () => clearInterval(timerRef.current);
-  }, [activeCode]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function markAttendance() {
+    setMarking(true);
     setError("");
-    if (!input.trim()) return;
-    setSubmitting(true);
     try {
-      const res = await fetch("/api/attendance/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: input.trim().toUpperCase() }),
-      });
+      const res  = await fetch("/api/attendance/mark-direct", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Failed to mark attendance.");
-        return;
-      }
-      setSuccess(true);
+      if (!res.ok) throw new Error(data.error || "Failed to mark attendance.");
       setMarkedToday(true);
-      clearInterval(timerRef.current);
+      setSuccess(true);
       onMarked?.(data.totalVisits);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setSubmitting(false);
+      setMarking(false);
     }
   }
 
-  // Not from QR scan — hide section entirely
-  if (hasQr === false) return null;
-
   // Loading
-  if (hasQr === null) return null;
+  if (markedToday === null) return null;
 
-  // Already marked today
-  if (markedToday || success) {
+  // Already marked
+  if (markedToday) {
     return (
       <Card className="lg:col-span-3 border-emerald-200 bg-emerald-50">
         <div className="flex items-center gap-3">
@@ -211,7 +157,9 @@ function AttendanceSection({ memberId, onMarked }) {
             <FiCheckCircle size={20} className="text-emerald-600" />
           </div>
           <div>
-            <p className="text-sm font-bold text-emerald-700">Attendance marked for today ✓</p>
+            <p className="text-sm font-bold text-emerald-700">
+              {success ? "Attendance marked for today ✓" : "Already checked in today ✓"}
+            </p>
             <p className="text-xs text-emerald-600 mt-0.5">Great job showing up! See you tomorrow.</p>
           </div>
         </div>
@@ -219,63 +167,33 @@ function AttendanceSection({ memberId, onMarked }) {
     );
   }
 
-  const mins = Math.floor(secondsLeft / 60);
-  const secs = secondsLeft % 60;
-
+  // Not marked yet — show button
   return (
     <Card className="lg:col-span-3">
-      <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-        <div className="flex-1">
-          <h3 className="text-sm font-bold text-gray-900 mb-0.5">Today's Attendance</h3>
-          <p className="text-xs text-gray-400 mb-4">
-            Enter the code from the gym check-in screen to mark your attendance.
-          </p>
-
-          {/* Show the active code with timer if one exists */}
-          {activeCode && !codeExpired && (
-            <div className="mb-4 flex items-center gap-3 rounded-xl bg-indigo-50 px-4 py-3 border border-indigo-100">
-              <div>
-                <p className="text-xs text-indigo-500 font-semibold mb-0.5">Your code</p>
-                <p className="text-2xl font-black tracking-widest text-indigo-700">{activeCode.code}</p>
-              </div>
-              <div className="ml-auto text-right">
-                <p className="text-xs text-gray-400">Expires in</p>
-                <p className={`text-lg font-black ${secondsLeft <= 30 ? "text-red-500" : "text-indigo-600"}`}>
-                  {pad(mins)}:{pad(secs)}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {activeCode && codeExpired && (
-            <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3 border border-gray-100">
-              <p className="text-xs text-red-500 font-semibold">Code expired — generate a new one at the gym check-in screen.</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value.toUpperCase())}
-              maxLength={4}
-              placeholder="Enter code (e.g. A7K9)"
-              className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-semibold tracking-widest uppercase outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-            />
-            <button
-              disabled={submitting || !input.trim()}
-              className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60 whitespace-nowrap"
-            >
-              {submitting ? "Marking..." : "Mark Attendance"}
-            </button>
-          </form>
-
-          {error && (
-            <p className="mt-2 text-sm font-medium text-red-600 flex items-center gap-1.5">
-              <FiAlertCircle size={14} /> {error}
-            </p>
-          )}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
+            <FiCalendar size={18} className="text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900">Mark Today's Attendance</p>
+            <p className="text-xs text-gray-400 mt-0.5">Tap the button to check in for today.</p>
+          </div>
         </div>
+        <button
+          onClick={markAttendance}
+          disabled={marking}
+          className="shrink-0 flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60 transition"
+        >
+          <FiCheckCircle size={15} />
+          {marking ? "Marking…" : "Check In"}
+        </button>
       </div>
+      {error && (
+        <p className="mt-3 text-sm font-medium text-red-600 flex items-center gap-1.5">
+          <FiAlertCircle size={14} /> {error}
+        </p>
+      )}
     </Card>
   );
 }
