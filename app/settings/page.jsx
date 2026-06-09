@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
-import {
-  saveAutoLoginData, setAutoLoginEnabled, clearAutoLoginData, getAutoLoginData
-} from "@/components/AutoLoginProvider";
 import {
   FiCalendar, FiSave, FiGift, FiPlus, FiTrash2,
   FiEdit2, FiCheck, FiX, FiToggleLeft, FiToggleRight,
   FiClock, FiDollarSign, FiActivity, FiMessageCircle,
-  FiSun, FiMoon, FiAlertCircle, FiShield, FiLock,
+  FiSun, FiMoon, FiAlertCircle,
 } from "react-icons/fi";
 
 const UNIT_LABELS = { days: "Days", months: "Months", years: "Years", visits: "Visits" };
@@ -729,9 +726,6 @@ export default function SettingsPage() {
           {/* ── 6. WhatsApp Bot (Code-based Pairing) ───────── */}
           <WhatsAppBotSection />
 
-          {/* ── 7. Auto Login ─────────────────────────────────── */}
-          <AutoLoginSection />
-
         </main>
       </div>
     </div>
@@ -748,13 +742,12 @@ function WhatsAppBotSection() {
   const [message, setMessage]         = useState("");
   const [phoneInput, setPhoneInput]   = useState("");
 
-  useEffect(() => {
-    checkBotStatus();
-    const interval = setInterval(checkBotStatus, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  // Use a ref so the interval always calls the latest version without
+  // causing the effect to re-run (which would reset the interval and
+  // interrupt typing).
+  const checkBotStatusRef = useRef(null);
 
-  async function checkBotStatus() {
+  checkBotStatusRef.current = async function checkBotStatus() {
     try {
       const res  = await fetch("/api/whatsapp/status");
       const data = await res.json();
@@ -772,7 +765,13 @@ function WhatsAppBotSection() {
       setPairingCode("");
       setPairing(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    checkBotStatusRef.current();
+    const interval = setInterval(() => checkBotStatusRef.current(), 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function startPairing(e) {
     e.preventDefault();
@@ -918,7 +917,7 @@ function WhatsAppBotSection() {
               <label className="block">
                 <span className="text-xs font-semibold text-gray-500 mb-1.5 block">WhatsApp Phone Number</span>
                 <div className="relative flex items-center">
-                  <span className="absolute left-3 text-sm font-bold text-gray-500">+91</span>
+                  <span className="absolute left-3 text-sm font-bold text-gray-500 pointer-events-none select-none">+91</span>
                   <input
                     type="tel"
                     value={phoneInput}
@@ -926,7 +925,8 @@ function WhatsAppBotSection() {
                     placeholder="9876543210"
                     maxLength={10}
                     disabled={loading}
-                    className={`${inp} pl-12`}
+                    className={inp}
+                    style={{ paddingLeft: "3rem" }}
                   />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">Enter your 10-digit mobile number</p>
@@ -1018,163 +1018,3 @@ function WhatsAppBotSection() {
   );
 }
 
-// ── Auto Login Section ───────────────────────────────────────────────────────
-function AutoLoginSection() {
-  const [enabled, setEnabled]       = useState(false);
-  const [hasCreds, setHasCreds]     = useState(false);
-  const [email, setEmail]           = useState("");
-  const [password, setPassword]     = useState("");
-  const [showForm, setShowForm]     = useState(false);
-  const [msg, setMsg]               = useState("");
-
-  useEffect(() => {
-    const data = getAutoLoginData();
-    if (data) {
-      setEnabled(!!data.enabled);
-      setHasCreds(!!(data.email && data.password));
-      setEmail(data.email || "");
-    }
-  }, []);
-
-  function toggle() {
-    const next = !enabled;
-    setEnabled(next);
-    setAutoLoginEnabled(next);
-    setMsg(next ? "Auto-login activated." : "Auto-login deactivated.");
-    setTimeout(() => setMsg(""), 2500);
-  }
-
-  function save(e) {
-    e.preventDefault();
-    if (!email.trim() || !password.trim()) { setMsg("Fill in both fields."); return; }
-    saveAutoLoginData(email.trim(), password);
-    setHasCreds(true);
-    setShowForm(false);
-    setPassword("");
-    setMsg("Credentials saved. Auto-login is now active.");
-    setEnabled(true);
-    setTimeout(() => setMsg(""), 3000);
-  }
-
-  function remove() {
-    if (!confirm("Remove saved credentials? Auto-login will be disabled.")) return;
-    clearAutoLoginData();
-    setEnabled(false);
-    setHasCreds(false);
-    setEmail("");
-    setPassword("");
-    setMsg("Credentials removed.");
-    setTimeout(() => setMsg(""), 2500);
-  }
-
-  return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <FiShield size={18} />
-          </div>
-          <div>
-            <h2 className="font-bold text-gray-900">Auto Login</h2>
-            <p className="text-xs text-gray-400">Stay logged in — restore session automatically if it expires</p>
-          </div>
-        </div>
-        {/* Activate / Deactivate toggle */}
-        <button
-          onClick={toggle}
-          disabled={!hasCreds}
-          title={!hasCreds ? "Save credentials first" : ""}
-          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold border transition disabled:opacity-40 ${
-            enabled
-              ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
-              : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
-          }`}
-        >
-          {enabled
-            ? <><FiToggleRight size={15}/> Active</>
-            : <><FiToggleLeft size={15}/> Inactive</>}
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {hasCreds && !showForm ? (
-          <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <FiLock size={13} className="text-gray-400" />
-              <span className="text-sm text-gray-700 font-medium">{email}</span>
-              <span className="text-xs text-gray-400">· password saved</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowForm(true)}
-                className="text-xs font-semibold text-indigo-600 hover:underline"
-              >Edit</button>
-              <button
-                onClick={remove}
-                className="text-xs font-semibold text-red-500 hover:underline"
-              >Remove</button>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={save} className="space-y-3">
-            <p className="text-sm text-gray-500">
-              Save your admin credentials here. If your session expires, the app will log you back in silently.
-            </p>
-            <label className="block">
-              <span className="text-xs font-semibold text-gray-500 mb-1 block">Admin Email</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@Optimus.in"
-                required
-                className={inp}
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-semibold text-gray-500 mb-1 block">Password</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className={inp}
-              />
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 transition"
-              >
-                <FiCheck size={14} /> Save & Activate
-              </button>
-              {hasCreds && (
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(false); setPassword(""); }}
-                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition"
-                >Cancel</button>
-              )}
-            </div>
-          </form>
-        )}
-
-        {msg && (
-          <p className={`text-xs font-semibold rounded-lg px-3 py-2 ${
-            msg.includes("removed") || msg.includes("deactivated")
-              ? "bg-gray-50 text-gray-500"
-              : "bg-indigo-50 text-indigo-700"
-          }`}>{msg}</p>
-        )}
-
-        <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-2.5">
-          <FiAlertCircle size={13} className="text-amber-500 mt-0.5 shrink-0" />
-          <p className="text-xs text-amber-700">
-            Credentials are stored only in this browser's local storage — never sent to any server other than your own login API. Use only on trusted devices.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}

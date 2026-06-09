@@ -1,5 +1,4 @@
 import "./globals.css";
-import AutoLoginProvider from "@/components/AutoLoginProvider";
 
 export const metadata = {
   title: "Optimus Gym CRM",
@@ -10,7 +9,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body suppressHydrationWarning>
-        <AutoLoginProvider />
         {children}
       </body>
     </html>

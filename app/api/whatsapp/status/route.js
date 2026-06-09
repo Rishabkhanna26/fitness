@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-const BOT_URL = process.env.WHATSAPP_BOT_URL || "http://localhost:3002";
-const BOT_SECRET = process.env.WHATSAPP_BOT_SECRET || "Optimus-bot-secret";
+const BOT_URL = (process.env.WHATSAPP_BOT_URL || "http://localhost:3002").replace(/\/+$/, "");
+const BOT_SECRET = process.env.WHATSAPP_BOT_SECRET || "optimus-gym-secret";
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
   const controller = new AbortController();

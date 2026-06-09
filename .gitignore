@@ -11,8 +11,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment files
-.env*
+# Environment files — ignore .env but keep .env.example
+.env
+.env.local
+.env.*.local
 
 # Misc
 .DS_Store
@@ -20,3 +22,5 @@ pnpm-debug.log*
 # WhatsApp bot auth session (contains sensitive session data)
 wwebjs_auth/
 whatsapp-bot/wwebjs_auth/
+whatsapp-bot/.saved_phone
+whatsapp-bot/.wwebjs_cache

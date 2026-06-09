@@ -16,7 +16,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_API_URL = process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODEL   = process.env.OPENROUTER_MODEL   || "meta-llama/llama-3.3-70b-instruct:free";
 const GEMINI_API_KEY     = process.env.GEMINI_API_KEY     || "";
-const GEMINI_MODEL       = "gemma-3-27b-it";
+const GEMINI_MODEL       = "gemma-4-31b-it";
 const SUPABASE_URL       = (process.env.SUPABASE_API_URL || process.env.SUPABASE_URL || "").replace(/\/+$/, "");
 const SUPABASE_KEY       = process.env.SUPABASE_ANON_KEY  || "";
 
@@ -209,8 +209,52 @@ function formatForWhatsApp(text) {
   return t.trim();
 }
 
+// ── AI Models Configuration ───────────────────────────────────────────────────
+const ALL_MODELS = [
+  // OpenRouter
+  { id: "or_llama33",     provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free",                        label: "Llama 3.3 70B",         free: true  },
+  { id: "or_gptoss120",   provider: "openrouter", model: "openai/gpt-oss-120b:free",                                      label: "GPT-OSS 120B",          free: true  },
+  { id: "or_gptoss20",    provider: "openrouter", model: "openai/gpt-oss-20b:free",                                       label: "GPT-OSS 20B",           free: true  },
+  { id: "or_nem120",      provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free",                        label: "Nemotron Super 120B",   free: true  },
+  { id: "or_nem550",      provider: "openrouter", model: "nvidia/nemotron-3-ultra-550b-a55b:free",                        label: "Nemotron Ultra 550B",   free: true  },
+  { id: "or_nem30",       provider: "openrouter", model: "nvidia/nemotron-3-nano-30b-a3b:free",                           label: "Nemotron Nano 30B",     free: true  },
+  { id: "or_nem30o",      provider: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",            label: "Nemotron Nano Omni",    free: true  },
+  { id: "or_nem12",       provider: "openrouter", model: "nvidia/nemotron-nano-12b-v2-vl:free",                           label: "Nemotron Nano VL 12B",  free: true  },
+  { id: "or_nem9",        provider: "openrouter", model: "nvidia/nemotron-nano-9b-v2:free",                               label: "Nemotron Nano 9B",      free: true  },
+  { id: "or_kimi",        provider: "openrouter", model: "moonshotai/kimi-k2.6:free",                                     label: "Kimi K2.6",             free: true  },
+  { id: "or_qwencoder",   provider: "openrouter", model: "qwen/qwen3-coder:free",                                         label: "Qwen3 Coder",           free: true  },
+  { id: "or_qwennext",    provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free",                         label: "Qwen3 Next 80B",        free: true  },
+  { id: "or_glm45",       provider: "openrouter", model: "z-ai/glm-4.5-air:free",                                         label: "GLM 4.5 Air",           free: true  },
+  { id: "or_gemma431",    provider: "openrouter", model: "google/gemma-4-31b-it:free",                                    label: "Gemma 4 31B (OR)",      free: true  },
+  { id: "or_gemma426",    provider: "openrouter", model: "google/gemma-4-26b-a4b-it:free",                                label: "Gemma 4 26B (OR)",      free: true  },
+  { id: "or_hermes",      provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free",                     label: "Hermes 3 405B",         free: true  },
+  { id: "or_dolphin",     provider: "openrouter", model: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", label: "Dolphin Mistral 24B",  free: true  },
+  { id: "or_llama32_3b",  provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free",                         label: "Llama 3.2 3B",          free: true  },
+
+  // Gemini
+  { id: "gm_25flash",     provider: "gemini", model: "gemini-2.5-flash",                      label: "Gemini 2.5 Flash",      free: true  },
+  { id: "gm_25flashlite", provider: "gemini", model: "gemini-2.5-flash-lite-preview-06-17",   label: "Gemini 2.5 Flash Lite", free: true  },
+  { id: "gm_31flashlite", provider: "gemini", model: "gemini-3.1-flash-lite",                 label: "Gemini 3.1 Flash Lite", free: true  },
+  { id: "gm_31pro",       provider: "gemini", model: "gemini-3.1-pro",                        label: "Gemini 3.1 Pro",        free: false },
+  { id: "gm_3flash",      provider: "gemini", model: "gemini-3-flash",                        label: "Gemini 3 Flash",        free: true  },
+  { id: "gm_gemma426",    provider: "gemini", model: "gemma-3-27b-it",                        label: "Gemma 4 26B",           free: true  },
+  { id: "gm_gemma431",    provider: "gemini", model: "gemma-4-31b",                           label: "Gemma 4 31B",           free: true  },
+];
+
+const MAIN_MODELS = [
+  { provider: "openrouter", model: "openai/gpt-oss-120b:free" },
+  { provider: "openrouter", model: "openai/gpt-oss-20b:free" },
+  { provider: "gemini",     model: "gemini-3.1-flash-lite" },
+  { provider: "gemini",     model: "gemini-2.5-flash" }
+];
+
+const MODEL_SEQUENCE = [
+  ...MAIN_MODELS,
+  ...ALL_MODELS.filter(m => !MAIN_MODELS.some(main => main.model === m.model && main.provider === m.provider))
+];
+
 // ── OpenRouter call ───────────────────────────────────────────────────────────
-async function callOpenRouter(messages) {
+async function callOpenRouter(messages, modelToUse) {
   const res = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
@@ -220,7 +264,7 @@ async function callOpenRouter(messages) {
       "X-Title":      "OptimusGym Bot",
     },
     body: JSON.stringify({
-      model:             OPENROUTER_MODEL,
+      model:             modelToUse || OPENROUTER_MODEL,
       messages,
       max_tokens:        350,
       temperature:       0.65,
@@ -233,25 +277,25 @@ async function callOpenRouter(messages) {
   if (res.status === 429 || data?.error?.code === 429 ||
       (data?.error?.message || "").toLowerCase().includes("rate limit") ||
       (data?.error?.message || "").toLowerCase().includes("quota")) {
-    console.warn("⚠️  OpenRouter rate limit hit — switching to Gemini fallback");
+    console.warn(`⚠️  OpenRouter rate limit hit for ${modelToUse || OPENROUTER_MODEL}`);
     throw Object.assign(new Error("rate_limit"), { isRateLimit: true });
   }
 
   if (!res.ok || data.error) {
-    console.error("OpenRouter error:", JSON.stringify(data));
+    console.error(`OpenRouter error (${modelToUse || OPENROUTER_MODEL}):`, JSON.stringify(data));
     throw new Error("openrouter_error");
   }
 
   const text = data.choices?.[0]?.message?.content?.trim();
   if (!text) {
-    console.error("OpenRouter empty content:", JSON.stringify(data));
+    console.error(`OpenRouter empty content (${modelToUse || OPENROUTER_MODEL}):`, JSON.stringify(data));
     throw new Error("empty_response");
   }
   return text;
 }
 
 // ── Gemini fallback call ──────────────────────────────────────────────────────
-async function callGemini(messages) {
+async function callGemini(messages, modelToUse) {
   if (!GEMINI_API_KEY) throw new Error("no_gemini_key");
 
   // Convert OpenAI-style messages to Gemini format
@@ -269,7 +313,7 @@ async function callGemini(messages) {
     generationConfig:   { maxOutputTokens: 350, temperature: 0.65 },
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse || GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
   const res  = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -280,23 +324,24 @@ async function callGemini(messages) {
   if (!res.ok || data.error) {
     const msg = data?.error?.message || "";
     const retry = data?.error?.details?.find(d => d["@type"]?.includes("RetryInfo"))?.retryDelay;
-    if (res.status === 429 || data?.error?.code === 429) {
-      console.warn(`⚠️  Gemini rate limit hit.${retry ? ` Retry in ${retry}.` : ""}`);
+    if (res.status === 429 || data?.error?.code === 429 || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota")) {
+      console.warn(`⚠️  Gemini rate limit hit for ${modelToUse || GEMINI_MODEL}.${retry ? ` Retry in ${retry}.` : ""}`);
+      throw Object.assign(new Error("rate_limit"), { isRateLimit: true });
     } else {
-      console.error("Gemini error:", JSON.stringify(data));
+      console.error(`Gemini error (${modelToUse || GEMINI_MODEL}):`, JSON.stringify(data));
+      throw new Error("gemini_error");
     }
-    throw new Error("gemini_error");
   }
 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!text) {
-    console.error("Gemini empty content:", JSON.stringify(data));
+    console.error(`Gemini empty content (${modelToUse || GEMINI_MODEL}):`, JSON.stringify(data));
     throw new Error("gemini_empty");
   }
   return text;
 }
 
-// ── Main AI entry point — OpenRouter first, Gemini fallback ──────────────────
+// ── Main AI entry point — Multi-model Fallback ────────────────────────────────
 async function askAI(userJid, userMessage) {
   if (!OPENROUTER_API_KEY && !GEMINI_API_KEY)
     return "Hi! I'm OptimusBot 💪 No AI key configured yet. Please contact the gym admin.";
@@ -310,41 +355,38 @@ async function askAI(userJid, userMessage) {
   ];
 
   let raw = null;
-  let provider = "openrouter";
+  let usedModel = null;
 
-  // 1️⃣ Try OpenRouter first
-  if (OPENROUTER_API_KEY) {
+  for (const m of MODEL_SEQUENCE) {
     try {
-      raw = await callOpenRouter(messages);
-    } catch (err) {
-      if (err.isRateLimit || err.message === "empty_response") {
-        // Fall through to Gemini
-        provider = "gemini";
-      } else {
-        // Non-rate-limit error — still try Gemini if available
-        provider = "gemini";
+      if (m.provider === "openrouter") {
+        if (!OPENROUTER_API_KEY) continue;
+        raw = await callOpenRouter(messages, m.model);
+      } else if (m.provider === "gemini") {
+        if (!GEMINI_API_KEY) continue;
+        raw = await callGemini(messages, m.model);
       }
-    }
-  } else {
-    provider = "gemini";
-  }
-
-  // 2️⃣ Fallback to Gemini if OpenRouter failed/rate-limited
-  if (!raw && provider === "gemini") {
-    if (!GEMINI_API_KEY) {
-      console.error("Gemini fallback needed but GEMINI_API_KEY not set");
-      return "Sorry, couldn't process that right now. Please contact us at the gym! 💪";
-    }
-    try {
-      raw = await callGemini(messages);
-      console.log("✅ Replied via Gemini fallback");
+      
+      if (raw) {
+        usedModel = m;
+        console.log(`✅ Replied via ${m.provider} (${m.model})`);
+        break; // Successfully got response
+      }
     } catch (err) {
-      console.error("Gemini fallback error:", err.message);
-      return "Sorry, couldn't process that right now. Please contact us at the gym! 💪";
+      if (err.isRateLimit || err.message === "empty_response" || err.message === "openrouter_error" || err.message === "gemini_error") {
+        console.log(`❌ Model ${m.model} failed/rate-limited, trying next...`);
+        continue;
+      }
+      // If some other unknown error, also continue
+      console.log(`❌ Model ${m.model} threw unexpected error, trying next...`);
+      continue;
     }
   }
 
-  if (!raw) return "Sorry, couldn't process that right now. Please contact us at the gym! 💪";
+  if (!raw) {
+    console.error("All fallback models failed.");
+    return "Sorry, couldn't process that right now. Please contact us at the gym! 💪";
+  }
 
   const reply = formatForWhatsApp(raw);
 
@@ -359,8 +401,12 @@ async function askAI(userJid, userMessage) {
 // ── Build a WhatsApp client ───────────────────────────────────────────────────
 function buildClient(phone) {
   return new Client({
-    authStrategy: new LocalAuth({ dataPath: "./wwebjs_auth" }),
+    authStrategy: new LocalAuth({ dataPath: path.join(__dirname, "wwebjs_auth") }),
     puppeteer: { headless: true, args: PUPPETEER_ARGS },
+    webVersionCache: {
+      type: "local",
+      path: path.join(__dirname, ".wwebjs_cache")
+    }
   });
 }
 

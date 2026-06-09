@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FiActivity, FiClock, FiLock, FiMail, FiPhone, FiUser, FiX } from "react-icons/fi";
-import { saveAutoLoginData, getAutoLoginData } from "@/components/AutoLoginProvider";
 
 const DURATIONS = ["1 Month", "3 Months", "Custom"];
 
@@ -42,14 +41,6 @@ export default function LoginPage() {
         }
         setError(data.error || "Login failed.");
         return;
-      }
-
-      // Save admin credentials for auto-login if feature is enabled
-      if (role === "admin") {
-        const existing = getAutoLoginData();
-        if (existing?.enabled) {
-          saveAutoLoginData(form.email.trim(), form.password);
-        }
       }
 
       window.location.href = data.redirectTo;

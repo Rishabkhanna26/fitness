@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { decodeSession, SESSION_COOKIE } from "@/lib/session";
 
-const BOT_URL    = process.env.WHATSAPP_BOT_URL    || "http://localhost:3002";
-const BOT_SECRET = process.env.WHATSAPP_BOT_SECRET || "Optimus-bot-secret";
+const BOT_URL    = (process.env.WHATSAPP_BOT_URL    || "http://localhost:3002").replace(/\/+$/, "");
+const BOT_SECRET = process.env.WHATSAPP_BOT_SECRET || "optimus-gym-secret";
 
 export async function POST() {
   try {
