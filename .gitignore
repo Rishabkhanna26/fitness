@@ -17,3 +17,6 @@ pnpm-debug.log*
 # Misc
 .DS_Store
 
+# WhatsApp bot auth session (contains sensitive session data)
+wwebjs_auth/
+whatsapp-bot/wwebjs_auth/

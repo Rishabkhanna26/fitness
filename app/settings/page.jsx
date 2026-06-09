@@ -740,13 +740,13 @@ export default function SettingsPage() {
 
 // ── WhatsApp Bot Section Component ──────────────────────────────────────────
 function WhatsAppBotSection() {
-  const [botStatus, setBotStatus]   = useState("idle");
-  const [botPhone, setBotPhone]     = useState("");
+  const [botStatus, setBotStatus]     = useState("idle");
+  const [botPhone, setBotPhone]       = useState("");
   const [pairingCode, setPairingCode] = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [pairing, setPairing]       = useState(false); // waiting for code to arrive
-  const [message, setMessage]       = useState("");
-  const [phoneInput, setPhoneInput] = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [pairing, setPairing]         = useState(false);
+  const [message, setMessage]         = useState("");
+  const [phoneInput, setPhoneInput]   = useState("");
 
   useEffect(() => {
     checkBotStatus();
@@ -758,24 +758,26 @@ function WhatsAppBotSection() {
     try {
       const res  = await fetch("/api/whatsapp/status");
       const data = await res.json();
-      setBotStatus(data.state);
+      setBotStatus(data.state || "offline");
       setBotPhone(data.phone || "");
       if (data.pairingCode) {
         setPairingCode(data.pairingCode);
-        setPairing(false); // code arrived, stop spinner
+        setPairing(false);
+      } else if (data.state !== "pairing") {
+        setPairingCode("");
       }
     } catch {
       setBotStatus("offline");
+      setBotPhone("");
+      setPairingCode("");
+      setPairing(false);
     }
   }
 
   async function startPairing(e) {
     e.preventDefault();
     if (!phoneInput.trim()) { setMessage("Please enter a phone number."); return; }
-    setLoading(true);
-    setPairing(false);
-    setPairingCode("");
-    setMessage("");
+    setLoading(true); setPairing(false); setPairingCode(""); setMessage("");
     try {
       const res  = await fetch("/api/whatsapp/start-pairing", {
         method: "POST",
@@ -784,10 +786,23 @@ function WhatsAppBotSection() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      // Server responds immediately; pairing code will arrive via polling
       setPairing(true);
       setBotPhone(phoneInput);
-      setMessage("Starting WhatsApp session… pairing code will appear below.");
+    } catch (err) {
+      setMessage(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function reconnect() {
+    setLoading(true); setMessage("");
+    try {
+      const res  = await fetch("/api/whatsapp/reconnect", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setBotStatus("pairing");
+      setMessage("Reconnecting… please wait.");
     } catch (err) {
       setMessage(`Error: ${err.message}`);
     } finally {
@@ -796,18 +811,14 @@ function WhatsAppBotSection() {
   }
 
   async function disconnect() {
-    if (!confirm("Disconnect WhatsApp bot?")) return;
+    if (!confirm("Disconnect WhatsApp bot? The saved session will be removed.")) return;
     setLoading(true);
     try {
       const res  = await fetch("/api/whatsapp/disconnect", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setBotStatus("idle");
-      setBotPhone("");
-      setPairingCode("");
-      setPairing(false);
-      setPhoneInput("");
-      setMessage("Disconnected.");
+      setBotStatus("idle"); setBotPhone(""); setPairingCode("");
+      setPairing(false); setPhoneInput(""); setMessage("");
     } catch (err) {
       setMessage(`Error: ${err.message}`);
     } finally {
@@ -815,9 +826,17 @@ function WhatsAppBotSection() {
     }
   }
 
-  const connected      = botStatus === "ready";
-  const isPairing      = botStatus === "pairing" || pairing;
-  const isReconnecting = botStatus === "reconnecting";
+  const connected        = botStatus === "ready";
+  const isPairing        = botStatus === "pairing" || pairing;
+  const isDisconnected   = botStatus === "disconnected";
+  const isOffline        = botStatus === "offline";
+
+  // Badge config
+  const badge = connected      ? { cls: "bg-green-100 text-green-700",  label: "🟢 Connected"   } :
+                isPairing      ? { cls: "bg-yellow-100 text-yellow-700", label: "🟡 Pairing…"    } :
+                isDisconnected ? { cls: "bg-orange-100 text-orange-700", label: "🟠 Disconnected" } :
+                isOffline      ? { cls: "bg-red-100 text-red-600",       label: "🔴 Offline"     } :
+                                 { cls: "bg-gray-100 text-gray-500",     label: "⚫ Idle"         };
 
   return (
     <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -825,23 +844,15 @@ function WhatsAppBotSection() {
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
-            <FiMessageCircle />
+            <FiMessageCircle size={18} />
           </div>
           <div>
             <h2 className="font-bold text-gray-900">WhatsApp Chatbot</h2>
             <p className="text-xs text-gray-400">Code-based login · powered by OpenRouter AI</p>
           </div>
         </div>
-        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-          connected      ? "bg-green-100 text-green-700"  :
-          isPairing      ? "bg-yellow-100 text-yellow-700" :
-          isReconnecting ? "bg-blue-100 text-blue-700"    :
-                           "bg-gray-100 text-gray-500"
-        }`}>
-          {connected      ? "🟢 Connected"    :
-           isPairing      ? "🟡 Pairing…"     :
-           isReconnecting ? "🔵 Reconnecting…":
-                            "⚫ " + botStatus}
+        <span className={`text-xs font-bold px-3 py-1 rounded-full ${badge.cls}`}>
+          {badge.label}
         </span>
       </div>
 
@@ -858,8 +869,7 @@ function WhatsAppBotSection() {
               </p>
             </div>
             <button
-              onClick={disconnect}
-              disabled={loading}
+              onClick={disconnect} disabled={loading}
               className="flex items-center gap-2 rounded-xl border border-red-200 px-5 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-60 transition"
             >
               <FiX size={14} /> Disconnect
@@ -867,8 +877,39 @@ function WhatsAppBotSection() {
           </>
         )}
 
-        {/* ── Idle: enter phone ── */}
-        {!connected && !isPairing && !pairingCode && (
+        {/* ── Disconnected — show saved phone + manual reconnect button ── */}
+        {isDisconnected && (
+          <>
+            <div className="rounded-xl bg-orange-50 border border-orange-100 px-4 py-3">
+              <p className="text-xs font-semibold text-orange-700">⚠ Session disconnected</p>
+              {botPhone && (
+                <p className="text-sm font-semibold text-orange-900 mt-0.5">+{botPhone}</p>
+              )}
+              <p className="text-xs text-orange-600 mt-1">
+                Your saved session is still valid. Click Reconnect to restore the bot without re-pairing.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={reconnect} disabled={loading}
+                className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60 transition"
+              >
+                {loading
+                  ? <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Connecting…</>
+                  : "↺ Reconnect"}
+              </button>
+              <button
+                onClick={disconnect} disabled={loading}
+                className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50"
+              >
+                Remove & start fresh
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Idle / Offline — enter phone to pair ── */}
+        {(botStatus === "idle" || isOffline) && !isPairing && !pairingCode && (
           <>
             <p className="text-sm text-gray-500">
               Enter your WhatsApp number. A pairing code will appear here — enter it in WhatsApp to link the bot.
@@ -891,8 +932,7 @@ function WhatsAppBotSection() {
                 <p className="text-xs text-gray-400 mt-1">Enter your 10-digit mobile number</p>
               </label>
               <button
-                type="submit"
-                disabled={loading}
+                type="submit" disabled={loading}
                 className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60 transition"
               >
                 {loading ? "Starting…" : "Get Pairing Code"}
@@ -901,21 +941,7 @@ function WhatsAppBotSection() {
           </>
         )}
 
-        {/* ── Auto-reconnecting ── */}
-        {!connected && isReconnecting && (
-          <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-4 flex items-center gap-3">
-            <svg className="animate-spin h-5 w-5 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            <div>
-              <p className="text-sm font-semibold text-blue-800">Reconnecting…</p>
-              <p className="text-xs text-blue-600 mt-0.5">Lost connection — restoring your WhatsApp session automatically.</p>
-            </div>
-          </div>
-        )}
-
-        {/* ── Waiting for pairing code to arrive ── */}
+        {/* ── Waiting for pairing code ── */}
         {!connected && isPairing && !pairingCode && (
           <div className="rounded-xl bg-yellow-50 border border-yellow-100 px-4 py-4 flex items-center gap-3">
             <svg className="animate-spin h-5 w-5 text-yellow-500 shrink-0" viewBox="0 0 24 24" fill="none">
@@ -945,15 +971,9 @@ function WhatsAppBotSection() {
             </div>
             <button
               onClick={async () => {
-                // Reset bot state without full logout — just stops the current init
-                try {
-                  await fetch("/api/whatsapp/reset", { method: "POST" });
-                } catch {}
-                setPairingCode("");
-                setPairing(false);
-                setBotStatus("idle");
-                setPhoneInput("");
-                setMessage("");
+                try { await fetch("/api/whatsapp/reset", { method: "POST" }); } catch {}
+                setPairingCode(""); setPairing(false); setBotStatus("idle");
+                setPhoneInput(""); setMessage("");
               }}
               className="text-xs text-gray-400 hover:text-gray-600 transition"
             >
@@ -966,7 +986,7 @@ function WhatsAppBotSection() {
         {botStatus === "auth_failed" && (
           <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3">
             <p className="text-sm font-semibold text-red-700">Authentication failed.</p>
-            <p className="text-xs text-red-600 mt-0.5">Make sure you entered the correct code before it expired. Try again.</p>
+            <p className="text-xs text-red-600 mt-0.5">Make sure you entered the correct code before it expired.</p>
             <button
               onClick={() => { setBotStatus("idle"); setPairingCode(""); setPairing(false); }}
               className="mt-2 text-xs font-semibold text-red-600 hover:underline"
@@ -987,6 +1007,7 @@ function WhatsAppBotSection() {
             <div className="text-xs text-gray-500 space-y-0.5">
               <p className="font-semibold text-gray-600">How it works</p>
               <p>Enter your number → get a pairing code → enter it in WhatsApp → bot is live.</p>
+              <p>If the bot disconnects, click <strong>Reconnect</strong> to restore without re-pairing.</p>
               <p>The bot answers questions about gym timing, membership prices, and diet plans using your saved settings.</p>
             </div>
           </div>

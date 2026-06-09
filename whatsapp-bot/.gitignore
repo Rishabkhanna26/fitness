@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.local
 wwebjs_auth/
+.saved_phone
 *.log
 npm-debug.log*
 yarn-debug.log*
