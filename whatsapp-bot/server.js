@@ -70,62 +70,13 @@ function clearPhone() {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let botState     = "idle";
-let pairingCode  = null;
-let client       = null;
-let pendingPhone = savedPhone();
+let botState    = "idle";   // idle | pairing | ready | auth_failed | disconnected
+let pairingCode = null;
+let client      = null;
+let pendingPhone = savedPhone(); // restore from last session
 
-const conversations = new Map(); // jid → [{role, content}]
-const userMeta      = new Map(); // jid → { nameConfirmed, name, ... }
-const MAX_HISTORY   = 20;
-
-// ── Rate limiter — per JID ────────────────────────────────────────────────────
-// Tracks message timestamps for each JID in a sliding window.
-// If a JID sends more than RATE_LIMIT_MAX messages in RATE_LIMIT_WINDOW ms,
-// the bot replies with a throttle message and skips the AI call.
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX    = 10;        // max messages per window per user
-const rateLimitMap      = new Map(); // jid → [timestamps]
-
-function isRateLimited(jid) {
-  const now  = Date.now();
-  const prev = rateLimitMap.get(jid) || [];
-  // Keep only timestamps within the current window
-  const recent = prev.filter(t => now - t < RATE_LIMIT_WINDOW);
-  recent.push(now);
-  rateLimitMap.set(jid, recent);
-  return recent.length > RATE_LIMIT_MAX;
-}
-
-// ── Conversation timeout — clear stale history after 24h of inactivity ────────
-const CONVERSATION_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
-const lastActivityMap       = new Map(); // jid → timestamp
-
-function touchActivity(jid) {
-  lastActivityMap.set(jid, Date.now());
-}
-
-function clearStaleConversation(jid) {
-  const last = lastActivityMap.get(jid);
-  if (last && Date.now() - last > CONVERSATION_TIMEOUT) {
-    conversations.delete(jid);
-    // Keep userMeta (name confirmed etc.) — only clear chat history
-    console.log(`🧹 Cleared stale conversation for ${jid} (inactive > 24h)`);
-    return true;
-  }
-  return false;
-}
-
-// Run stale-conversation cleanup every 30 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [jid, last] of lastActivityMap.entries()) {
-    if (now - last > CONVERSATION_TIMEOUT) {
-      conversations.delete(jid);
-      lastActivityMap.delete(jid);
-    }
-  }
-}, 30 * 60 * 1000);
+const conversations  = new Map();
+const MAX_HISTORY    = 20;
 
 // ── Puppeteer args ────────────────────────────────────────────────────────────
 const PUPPETEER_ARGS = [
@@ -804,12 +755,36 @@ function startClient(phone) {
   });
 
   c.on("loading_screen", (pct) => console.log(`⏳ Loading: ${pct}%`));
-  c.on("authenticated",  ()    => { console.log("✅ Authenticated"); pairingCode = null; botState = "ready"; });
-  c.on("auth_failure",   (msg) => { console.error("❌ Auth failure:", msg); botState = "auth_failed"; pairingCode = null; client = null; });
-  c.on("ready",          ()    => { console.log("✅ Bot READY"); botState = "ready"; pairingCode = null; if (pendingPhone) savePhone(pendingPhone); });
-  c.on("disconnected",   (r)   => { console.log("⚡ Disconnected:", r); client = null; pairingCode = null; botState = "disconnected"; });
 
-  // ── Main message handler ──────────────────────────────────────────────────
+  c.on("authenticated", () => {
+    console.log("✅ WhatsApp authenticated");
+    pairingCode = null;
+    botState    = "ready";
+  });
+
+  c.on("auth_failure", (msg) => {
+    console.error("❌ Auth failure:", msg);
+    botState    = "auth_failed";
+    pairingCode = null;
+    client      = null;
+  });
+
+  c.on("ready", () => {
+    console.log("✅ WhatsApp bot is READY");
+    botState    = "ready";
+    pairingCode = null;
+    if (pendingPhone) savePhone(pendingPhone); // persist phone for manual reconnect
+  });
+
+  c.on("disconnected", (reason) => {
+    console.log("⚡ Disconnected:", reason);
+    client      = null;
+    pairingCode = null;
+    // No auto-reconnect — set state so UI shows manual reconnect button
+    botState = "disconnected";
+    console.log("ℹ️  Session disconnected. Use the dashboard to reconnect manually.");
+  });
+
   c.on("message", async (msg) => {
     if (msg.from === "status@broadcast" || msg.isStatus) return;
     if (msg.from.endsWith("@g.us") || msg.fromMe) return;
@@ -823,56 +798,7 @@ function startClient(phone) {
     // ── Security: sanitise input before any processing ────────────────────
     const body = sanitiseInput(rawBody);
     if (!body) return;
-
-    // ── Rate limiting ─────────────────────────────────────────────────────
-    if (isRateLimited(jid)) {
-      console.warn(`⚠️  Rate limit hit for ${jid}`);
-      try { await msg.reply("Ek second ruk bhai! 😅 Thodi der baad phir try karo."); } catch {}
-      return;
-    }
-
-    console.log(`📩 ${jid}: ${body}`);
-
-    // ── Conversation timeout check ────────────────────────────────────────
-    clearStaleConversation(jid);
-    touchActivity(jid);
-
-    // ── 1. Upsert contact ─────────────────────────────────────────────────
-    const whatsappName  = extractNameFromContact(msg);
-    const existingBefore = await getContact(jid);
-    const isNewContact   = !existingBefore;
-    await upsertContact(jid, phone, whatsappName);
-    const contact = await getContact(jid);
-    if (isNewContact) console.log(`🆕 New contact: ${jid} (${whatsappName || "unnamed"})`);
-
-    // ── 2. In-memory meta ─────────────────────────────────────────────────
-    if (!userMeta.has(jid)) {
-      userMeta.set(jid, {
-        nameConfirmed:       contact?.name_confirmed || false,
-        name:                contact?.name           || null,
-        whatsappName:        whatsappName || contact?.name || null,
-        awaitingNameConfirm: false,
-        awaitingName:        false,
-        pendingName:         null,
-      });
-    } else {
-      const m = userMeta.get(jid);
-      if (whatsappName && !m.whatsappName) m.whatsappName = whatsappName;
-    }
-    const meta = userMeta.get(jid);
-
-    // ── 3. Feedback detection — runs before name flow ─────────────────────
-    if (meta.nameConfirmed) {
-      const feedbackSentiment = detectFeedback(body);
-      if (feedbackSentiment) {
-        const contactName = meta.name || contact?.name || null;
-        saveFeedback(jid, contactName, feedbackSentiment).catch(() => {});
-        // Let the AI handle the actual reply — just log it
-        console.log(`📣 Feedback (${feedbackSentiment}) from ${jid}`);
-      }
-    }
-
-    // ── 4. Name confirmation flow ─────────────────────────────────────────
+    console.log(`📩 ${msg.from}: ${body}`);
     try {
       const nameReply = await handleNameConfirmation(jid, body, meta, contact);
       if (nameReply) { await msg.reply(nameReply); return; }
