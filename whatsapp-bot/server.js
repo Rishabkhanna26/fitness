@@ -43,6 +43,8 @@ let botState    = "idle";   // idle | pairing | ready | auth_failed | disconnect
 let pairingCode = null;
 let client      = null;
 let pendingPhone = savedPhone(); // restore from last session
+// Unix seconds when the client became ready — used to ignore older messages
+let readyAt = 0;
 
 const conversations  = new Map();
 const MAX_HISTORY    = 20;
@@ -455,6 +457,8 @@ function startClient(phone) {
     console.log("✅ WhatsApp authenticated");
     pairingCode = null;
     botState    = "ready";
+    // mark activation time so we don't reply to messages from chat history
+    readyAt = Math.floor(Date.now() / 1000);
   });
 
   c.on("auth_failure", (msg) => {
@@ -468,6 +472,8 @@ function startClient(phone) {
     console.log("✅ WhatsApp bot is READY");
     botState    = "ready";
     pairingCode = null;
+    // mark activation time when fully ready
+    readyAt = Math.floor(Date.now() / 1000);
     if (pendingPhone) savePhone(pendingPhone); // persist phone for manual reconnect
   });
 
@@ -485,6 +491,12 @@ function startClient(phone) {
     if (msg.from.endsWith("@g.us") || msg.fromMe) return;
     const body = (msg.body || "").trim();
     if (!body) return;
+    // If message has a timestamp and it predates when the bot became ready,
+    // it's likely from chat history — ignore it.
+    if (msg.timestamp && readyAt && msg.timestamp < readyAt) {
+      console.log(`↩ Ignoring old message from ${msg.from} (ts=${msg.timestamp} < readyAt=${readyAt})`);
+      return;
+    }
     console.log(`📩 ${msg.from}: ${body}`);
     try {
       const reply = await askAI(msg.from, body);
