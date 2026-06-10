@@ -11,6 +11,7 @@ import {
   FiGrid,
   FiLogOut,
   FiMenu,
+  FiMessageCircle,
   FiSettings,
   FiUsers,
   FiX,
@@ -18,10 +19,11 @@ import {
 import { getClientSession } from "@/lib/session";
 
 const adminNavItems = [
-  { label: "Dashboard", href: "/", icon: FiGrid },
-  { label: "Members", href: "/members", icon: FiUsers },
-  { label: "Attendance", href: "/attendance", icon: FiCalendar },
-  { label: "Settings", href: "/settings", icon: FiSettings },
+  { label: "Dashboard",  href: "/",         icon: FiGrid           },
+  { label: "Members",    href: "/members",   icon: FiUsers          },
+  { label: "Leads",      href: "/leads",     icon: FiMessageCircle  },
+  { label: "Attendance", href: "/attendance",icon: FiCalendar       },
+  { label: "Settings",   href: "/settings",  icon: FiSettings       },
 ];
 
 const memberNavItems = [

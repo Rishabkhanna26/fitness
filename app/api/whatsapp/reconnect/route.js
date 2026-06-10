@@ -18,8 +18,8 @@ export async function POST() {
       headers: { "x-bot-secret": BOT_SECRET },
     });
 
-    if (!res.ok) throw new Error(`Bot returned ${res.status}`);
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Bot returned ${res.status}`);
     return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

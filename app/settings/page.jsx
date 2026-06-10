@@ -877,7 +877,7 @@ function WhatsAppBotSection() {
         )}
 
         {/* ── Disconnected — show saved phone + manual reconnect button ── */}
-        {isDisconnected && (
+        {isDisconnected && !isPairing && (
           <>
             <div className="rounded-xl bg-orange-50 border border-orange-100 px-4 py-3">
               <p className="text-xs font-semibold text-orange-700">⚠ Session disconnected</p>

@@ -132,3 +132,63 @@ alter table loyalty_offers
 alter table loyalty_offers 
   add constraint loyalty_offers_interval_unit_check 
   check (interval_unit in ('days', 'months', 'years', 'visits'));
+
+-- ── WhatsApp Bot Tables ────────────────────────────────────────────────────────
+
+-- Stores every unique WhatsApp contact that messages the bot
+create table if not exists whatsapp_contacts (
+  jid             text primary key,             -- e.g. 919876543210@c.us
+  phone           text not null,                -- digits only, e.g. 919876543210
+  name            text,                         -- confirmed or push-name
+  name_confirmed  boolean not null default false,
+  first_seen      timestamptz not null default now(),
+  last_seen       timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists idx_whatsapp_contacts_phone on whatsapp_contacts(phone);
+create index if not exists idx_whatsapp_contacts_last_seen on whatsapp_contacts(last_seen desc);
+
+-- Stores AI-generated chat summaries per contact (upserted every ~10 messages)
+create table if not exists chat_crux (
+  jid               text primary key references whatsapp_contacts(jid) on delete cascade,
+  contact_name      text,
+  summary           text,
+  main_topics       jsonb  not null default '[]'::jsonb,
+  asked_about       jsonb  not null default '[]'::jsonb,
+  diet_preference   text   not null default 'unknown',
+  joining_interest  text   not null default 'unknown'
+                    check (joining_interest in ('high','medium','low','unknown')),
+  joining_reason    text,
+  message_count     integer not null default 0,
+  updated_at        timestamptz not null default now()
+);
+
+create index if not exists idx_chat_crux_joining_interest on chat_crux(joining_interest);
+create index if not exists idx_chat_crux_updated_at on chat_crux(updated_at desc);
+
+-- Stores user feedback on bot replies (thumbs up / down)
+create table if not exists bot_feedback (
+  id           uuid primary key default gen_random_uuid(),
+  jid          text references whatsapp_contacts(jid) on delete set null,
+  contact_name text,
+  sentiment    text not null check (sentiment in ('positive','negative')),
+  created_at   timestamptz not null default now()
+);
+
+-- Stores token usage per AI request (tracks costs)
+create table if not exists chat_tokens (
+  id              uuid primary key default gen_random_uuid(),
+  jid             text not null references whatsapp_contacts(jid) on delete cascade,
+  contact_name    text,
+  provider        text not null check (provider in ('openrouter', 'gemini')),
+  model           text not null,
+  input_tokens    integer not null default 0,
+  output_tokens   integer not null default 0,
+  total_tokens    integer not null default 0,
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists idx_chat_tokens_jid on chat_tokens(jid);
+create index if not exists idx_chat_tokens_created_at on chat_tokens(created_at desc);
+create index if not exists idx_chat_tokens_provider on chat_tokens(provider);

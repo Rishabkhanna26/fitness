@@ -75,8 +75,10 @@ let pairingCode = null;
 let client      = null;
 let pendingPhone = savedPhone(); // restore from last session
 
-const conversations  = new Map();
-const MAX_HISTORY    = 20;
+const conversations   = new Map(); // jid -> [{role, content}]
+const userMeta        = new Map(); // jid -> { name, whatsappName, nameConfirmed, ... }
+const lastActivityMap = new Map(); // jid -> timestamp
+const MAX_HISTORY     = 20;
 
 // ── Puppeteer args ────────────────────────────────────────────────────────────
 const PUPPETEER_ARGS = [
@@ -112,6 +114,20 @@ async function supabaseGet(p) {
     });
     return res.ok ? res.json() : null;
   } catch { return null; }
+}
+
+async function supabaseDelete(table, filter) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/${table}?${filter}`, {
+      method: "DELETE",
+      headers: {
+        apikey:        SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    return res.ok ? true : false;
+  } catch { return false; }
 }
 
 async function supabasePatch(table, filter, body) {
@@ -222,6 +238,20 @@ async function saveFeedback(jid, contactName, sentiment) {
   });
 }
 
+// ── Token usage tracking ──────────────────────────────────────────────────────
+async function saveTokenUsage(jid, provider, model, tokenData, contactName) {
+  return supabasePost("chat_tokens", {
+    jid,
+    contact_name:  contactName || null,
+    provider,
+    model,
+    input_tokens:  tokenData.inputTokens  || 0,
+    output_tokens: tokenData.outputTokens || 0,
+    total_tokens:  tokenData.totalTokens  || 0,
+    created_at:    new Date().toISOString(),
+  });
+}
+
 // ── Admin alert — notify owner when a "high interest" lead is detected ─────────
 async function alertAdminHighInterest(jid, contactName, joiningReason) {
   if (!ADMIN_WHATSAPP || !client || botState !== "ready") return;
@@ -247,7 +277,10 @@ function extractNameFromContact(msg) {
 }
 
 function phoneFromJid(jid) {
-  return jid.replace("@c.us", "").replace(/\D/g, "");
+  return jid
+    .split("@")[0]
+    .split(":")[0]
+    .replace(/\D/g, "");
 }
 
 // ── Gym context ───────────────────────────────────────────────────────────────
@@ -458,27 +491,43 @@ function detectFeedback(body) {
 
 // ── AI Models ─────────────────────────────────────────────────────────────────
 const ALL_MODELS = [
-  { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
-  { provider: "openrouter", model: "openai/gpt-oss-120b:free" },
-  { provider: "openrouter", model: "openai/gpt-oss-20b:free" },
-  { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free" },
-  { provider: "openrouter", model: "moonshotai/kimi-k2.6:free" },
-  { provider: "openrouter", model: "qwen/qwen3-coder:free" },
-  { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
-  { provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free" },
-  { provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" },
-  { provider: "gemini",     model: "gemini-2.5-flash" },
-  { provider: "gemini",     model: "gemini-2.5-flash-lite-preview-06-17" },
-  { provider: "gemini",     model: "gemini-3-flash" },
-  { provider: "gemini",     model: "gemma-3-27b-it" },
+  // ── OpenRouter ──────────────────────────────────────────────────────────────
+  { id: "or_llama33",    provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free",                    label: "Llama 3.3 70B"        },
+  { id: "or_gptoss120",  provider: "openrouter", model: "openai/gpt-oss-120b:free",                                  label: "GPT-OSS 120B"          },
+  { id: "or_gptoss20",   provider: "openrouter", model: "openai/gpt-oss-20b:free",                                   label: "GPT-OSS 20B"           },
+  { id: "or_nem120",     provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free",                    label: "Nemotron Super 120B"   },
+  { id: "or_nem550",     provider: "openrouter", model: "nvidia/nemotron-3-ultra-550b-a55b:free",                    label: "Nemotron Ultra 550B"   },
+  { id: "or_nem30",      provider: "openrouter", model: "nvidia/nemotron-3-nano-30b-a3b:free",                       label: "Nemotron Nano 30B"     },
+  { id: "or_nem30o",     provider: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",        label: "Nemotron Nano Omni"    },
+  { id: "or_nem12",      provider: "openrouter", model: "nvidia/nemotron-nano-12b-v2-vl:free",                       label: "Nemotron Nano VL 12B"  },
+  { id: "or_nem9",       provider: "openrouter", model: "nvidia/nemotron-nano-9b-v2:free",                           label: "Nemotron Nano 9B"      },
+  { id: "or_kimi",       provider: "openrouter", model: "moonshotai/kimi-k2.6:free",                                 label: "Kimi K2.6"             },
+  { id: "or_qwencoder",  provider: "openrouter", model: "qwen/qwen3-coder:free",                                     label: "Qwen3 Coder"           },
+  { id: "or_qwennext",   provider: "openrouter", model: "qwen/qwen3-next-80b-a3b-instruct:free",                     label: "Qwen3 Next 80B"        },
+  { id: "or_glm45",      provider: "openrouter", model: "z-ai/glm-4.5-air:free",                                     label: "GLM 4.5 Air"           },
+  { id: "or_gemma431",   provider: "openrouter", model: "google/gemma-4-31b-it:free",                                label: "Gemma 4 31B (OR)"      },
+  { id: "or_gemma426",   provider: "openrouter", model: "google/gemma-4-26b-a4b-it:free",                            label: "Gemma 4 26B (OR)"      },
+  { id: "or_hermes",     provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free",                 label: "Hermes 3 405B"         },
+  { id: "or_dolphin",    provider: "openrouter", model: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", label: "Dolphin Mistral 24B" },
+  { id: "or_llama32_3b", provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free",                    label: "Llama 3.2 3B"          },
+  // ── Gemini ──────────────────────────────────────────────────────────────────
+  { id: "gm_25flash",     provider: "gemini", model: "gemini-2.5-flash",                       label: "Gemini 2.5 Flash"      },
+  { id: "gm_25flashlite", provider: "gemini", model: "gemini-2.5-flash-lite-preview-06-17",    label: "Gemini 2.5 Flash Lite" },
+  { id: "gm_31flashlite", provider: "gemini", model: "gemini-3.1-flash-lite",                  label: "Gemini 3.1 Flash Lite" },
+  { id: "gm_31pro",       provider: "gemini", model: "gemini-3.1-pro",                         label: "Gemini 3.1 Pro"        },
+  { id: "gm_3flash",      provider: "gemini", model: "gemini-3-flash",                         label: "Gemini 3 Flash"        },
+  { id: "gm_gemma426",    provider: "gemini", model: "gemma-3-27b-it",                         label: "Gemma 4 26B"           },
+  { id: "gm_gemma431",    provider: "gemini", model: "gemma-4-31b",                            label: "Gemma 4 31B"           },
 ];
 
 const MAIN_MODELS = [
-  { provider: "openrouter", model: "openai/gpt-oss-120b:free" },
-  { provider: "openrouter", model: "openai/gpt-oss-20b:free" },
-  { provider: "gemini",     model: "gemini-2.5-flash" },
+  { provider: "openrouter", model: "openai/gpt-oss-120b:free"            },
+  { provider: "openrouter", model: "openai/gpt-oss-20b:free"             },
+  { provider: "gemini",     model: "gemini-3.1-flash-lite"               },
+  { provider: "gemini",     model: "gemini-2.5-flash"                    },
 ];
 
+// MAIN_MODELS tried first, then the rest of ALL_MODELS as fallback
 const MODEL_SEQUENCE = [
   ...MAIN_MODELS,
   ...ALL_MODELS.filter(m => !MAIN_MODELS.some(mm => mm.model === m.model && mm.provider === m.provider)),
@@ -494,14 +543,21 @@ async function callOpenRouter(messages, model) {
       "X-Title":      "OptimusGym Bot",
     },
     body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.65, include_reasoning: false }),
+    signal: AbortSignal.timeout(20000), // 20s timeout per model
   });
   const data = await res.json();
   if (res.status === 429 || (data?.error?.message||"").match(/rate.?limit|quota/i))
     throw Object.assign(new Error("rate_limit"), { isRateLimit: true });
-  if (!res.ok || data.error) throw new Error("openrouter_error");
+  if (!res.ok || data.error)
+    throw new Error(`openrouter_error(${model}): ${data?.error?.message || res.status}`);
   const text = data.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("empty_response");
-  return text;
+  if (!text) throw new Error(`empty_response(${model})`);
+  return {
+    text,
+    inputTokens:  data.usage?.prompt_tokens     || 0,
+    outputTokens: data.usage?.completion_tokens || 0,
+    totalTokens:  data.usage?.total_tokens      || 0,
+  };
 }
 
 async function callGemini(messages, model) {
@@ -519,16 +575,22 @@ async function callGemini(messages, model) {
       contents:           geminiContents,
       generationConfig:   { maxOutputTokens: 400, temperature: 0.65 },
     }),
+    signal: AbortSignal.timeout(20000), // 20s timeout per model
   });
   const data = await res.json();
   if (!res.ok || data.error) {
     if (res.status === 429 || (data?.error?.message||"").match(/rate.?limit|quota/i))
       throw Object.assign(new Error("rate_limit"), { isRateLimit: true });
-    throw new Error("gemini_error");
+    throw new Error(`gemini_error(${model}): ${data?.error?.message || res.status}`);
   }
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error("gemini_empty");
-  return text;
+  if (!text) throw new Error(`gemini_empty(${model})`);
+  return {
+    text,
+    inputTokens:  data.usageMetadata?.promptTokenCount     || 0,
+    outputTokens: data.usageMetadata?.candidatesTokenCount || 0,
+    totalTokens:  data.usageMetadata?.totalTokenCount      || 0,
+  };
 }
 
 async function callModel(m, messages) {
@@ -554,8 +616,8 @@ async function generateChatCrux(jid, history, contactName) {
   ];
   for (const m of MODEL_SEQUENCE) {
     try {
-      const raw    = await callModel(m, cruxPrompt);
-      const clean  = raw.replace(/```json|```/g, "").trim();
+      const result = await callModel(m, cruxPrompt);
+      const clean  = result.text.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
       return parsed;
     } catch { continue; }
@@ -619,38 +681,60 @@ async function askAI(userJid, userMessage, contact) {
   if (!OPENROUTER_API_KEY && !GEMINI_API_KEY)
     return "Hi! I'm OptimusBot 💪 No AI key configured yet. Please contact the gym admin.";
 
-  const gymContext = await getGymContext();
-  const history    = conversations.get(userJid) || [];
-  const meta       = userMeta.get(userJid) || {};
-  const knownName  = meta.name || contact?.name;
-  const nameCtx    = knownName ? `\nUser's confirmed name: ${knownName}. Use it occasionally in replies.\n` : "";
+  const gymContext     = await getGymContext();
+  const history        = conversations.get(userJid) || [];
+  const meta           = userMeta.get(userJid) || {};
+  const isFirstMessage = history.length === 0;
+  const knownName      = meta.name || contact?.name;
+  const whatsappName   = meta.whatsappName;
+
+  let systemExtra = "";
+  if (knownName)
+    systemExtra += `\nUser's confirmed name: ${knownName}. Use it occasionally in replies.`;
+  else if (whatsappName)
+    systemExtra += `\nUser's WhatsApp display name: ${whatsappName}. You can use this to address them until they confirm.`;
+  if (isFirstMessage)
+    systemExtra += `\nThis is the user's FIRST message. Greet them warmly, introduce yourself briefly, and ask for their name naturally.`;
 
   const messages = [
-    { role: "system", content: gymContext + nameCtx },
+    { role: "system", content: gymContext + systemExtra },
     ...history,
     { role: "user",   content: userMessage },
   ];
 
-  let raw = null;
+  let result    = null;
+  let usedModel = null;
   for (const m of MODEL_SEQUENCE) {
     try {
-      raw = await callModel(m, messages);
-      if (raw) { console.log(`✅ Replied via ${m.provider} (${m.model})`); break; }
-    } catch { continue; }
+      result = await callModel(m, messages);
+      if (result) {
+        usedModel = m;
+        console.log(`✅ ${m.provider}/${m.model} | tokens:${result.totalTokens}`);
+        break;
+      }
+    } catch (err) {
+      console.warn(`⚠️  ${m.provider}/${m.model} failed: ${err.message}`);
+      continue;
+    }
   }
 
-  if (!raw) {
+  if (!result) {
     console.error("All fallback models failed.");
     return "Sorry yaar, abhi kuch problem aa rahi hai. Thodi der baad try karo ya gym pe aa jao! 💪";
   }
 
-  const reply = formatForWhatsApp(raw);
+  const reply = formatForWhatsApp(result.text);
 
   history.push({ role: "user",      content: userMessage });
   history.push({ role: "assistant", content: reply });
   if (history.length > MAX_HISTORY * 2)
     history.splice(0, history.length - MAX_HISTORY * 2);
   conversations.set(userJid, history);
+
+  if (usedModel) {
+    saveTokenUsage(userJid, usedModel.provider, usedModel.model, result, knownName || whatsappName)
+      .catch(console.error);
+  }
 
   return reply;
 }
@@ -793,27 +877,36 @@ function startClient(phone) {
     if (!rawBody) return;
 
     const jid   = msg.from;
-    const phone = phoneFromJid(jid);
+    let   phone = phoneFromJid(jid);
+    let   pushname = null;
+    try {
+      const contactData = await msg.getContact();
+      if (contactData?.number) phone = contactData.number;
+      pushname = contactData?.pushname || msg._data?.notifyName || null;
+    } catch {
+      pushname = msg._data?.notifyName || null;
+    }
+
+    const contact = await upsertContact(jid, phone, pushname);
 
     // ── Security: sanitise input before any processing ────────────────────
     const body = sanitiseInput(rawBody);
     if (!body) return;
-    console.log(`📩 ${msg.from}: ${body}`);
-    try {
-      const nameReply = await handleNameConfirmation(jid, body, meta, contact);
-      if (nameReply) { await msg.reply(nameReply); return; }
-    } catch (err) { console.error("Name flow error:", err.message); }
+    console.log(`📩 ${jid}: ${body}`);
 
-    // ── 5. Business hours context (appended to system prompt quietly) ─────
+    if (!userMeta.has(jid)) userMeta.set(jid, {});
+    const meta = userMeta.get(jid);
+    if (!meta.whatsappName && pushname) meta.whatsappName = pushname;
+
+    // ── 5. Business hours context ─────────────────────────────────────────
     const hoursCtx = await getBusinessHoursContext();
 
-    // ── 6. Normal AI reply ────────────────────────────────────────────────
+    // ── 6. AI reply ───────────────────────────────────────────────────────
     try {
-      // Temporarily append hours context to gym context for this call
       const originalCache = gymContextCache;
       if (hoursCtx) gymContextCache = (gymContextCache || "") + hoursCtx;
       const reply = await askAI(jid, body, contact);
-      gymContextCache = originalCache; // restore
+      gymContextCache = originalCache;
       await msg.reply(reply);
     } catch (err) {
       console.error("Reply error:", err.message);
@@ -899,6 +992,23 @@ app.post("/send", auth, async (req, res) => {
 app.get("/contacts", auth, async (_req, res) => {
   const rows = await supabaseGet("whatsapp_contacts?order=last_seen.desc&limit=200");
   res.json(rows || []);
+});
+
+app.delete("/contact/:jid", auth, async (req, res) => {
+  const jid = decodeURIComponent(req.params.jid);
+  if (!/^\d+(?::\d+)?@[a-z.]+$/.test(jid)) return res.status(400).json({ error: "Invalid JID format" });
+
+  const filter = `jid=eq.${encodeURIComponent(jid)}`;
+  await Promise.allSettled([
+    supabaseDelete("whatsapp_contacts", filter),
+    supabaseDelete("chat_crux", filter),
+    supabaseDelete("bot_feedback", filter),
+    supabaseDelete("chat_tokens", filter)
+  ]);
+
+  conversations.delete(jid);
+  userMeta.delete(jid);
+  res.json({ success: true });
 });
 
 app.get("/crux/:jid", auth, async (req, res) => {
