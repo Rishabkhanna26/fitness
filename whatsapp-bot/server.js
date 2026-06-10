@@ -130,20 +130,6 @@ async function supabaseDelete(table, filter) {
   } catch { return false; }
 }
 
-async function supabaseDelete(table, filter) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  try {
-    const res = await fetch(`${SUPABASE_URL}/${table}?${filter}`, {
-      method: "DELETE",
-      headers: {
-        apikey:        SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
-    });
-    return res.ok ? true : false;
-  } catch { return false; }
-}
-
 async function supabasePatch(table, filter, body) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   try {
@@ -322,12 +308,15 @@ OUTPUT RULE: Write ONLY the final WhatsApp reply. No thinking, no reasoning, no 
 - Keep replies short and human. No walls of text. No unnecessary formality.
 - Hinglish example: "Bhai, pehle bata — veg hai ya non-veg? 🥗" not "Please specify your dietary preference."
 
-━━━ LANGUAGE ━━━
-Always reply in the SAME language/script the user writes in:
-- English → English
-- Hindi → Hindi (Devanagari script)
-- Hinglish (mixed) → Hinglish
-- If unsure, default to friendly Hinglish.
+━━━ LANGUAGE RULES ━━━
+1. Detect the language of the customer's LAST message.
+2. Reply in exactly the same language.
+3. English -> English.
+4. Hindi -> Hindi (Devanagari script).
+5. Punjabi -> Punjabi.
+6. Hinglish -> Hinglish.
+7. Never switch languages on your own.
+8. Never greet in Hindi if the customer wrote in English.
 
 ━━━ SOCIAL MESSAGES — ALWAYS RESPOND WARMLY ━━━
 Greetings ("hi", "hello", "namaste", "hey"), thanks ("thanks", "shukriya"), compliments, and goodbyes MUST get a warm, natural reply. Never refuse social messages.
@@ -460,7 +449,15 @@ function buildDefaultContext() {
 OUTPUT RULE: Write ONLY the final WhatsApp reply. No thinking, no reasoning, no internal notes.
 
 PERSONALITY: Warm, encouraging gym buddy. Mirror the user's energy. Short, human replies.
-LANGUAGE: Always match user's language — English / Hindi / Hinglish. Default to Hinglish if unsure.
+LANGUAGE RULES:
+1. Detect the language of the customer's LAST message.
+2. Reply in exactly the same language.
+3. English -> English.
+4. Hindi -> Hindi.
+5. Punjabi -> Punjabi.
+6. Hinglish -> Hinglish.
+7. Never switch languages on your own.
+8. Never greet in Hindi if the customer wrote in English.
 
 SOCIAL MESSAGES: Always reply warmly to greetings, thanks, compliments, goodbyes. Never refuse them.
 FEEDBACK: 👍 / "helpful" → thank warmly. 👎 / "not helpful" → apologise and ask how to improve.
@@ -643,6 +640,8 @@ async function generateChatCrux(jid, history, contactName) {
 async function handleNameConfirmation(jid, body, meta, contact) {
   if (meta.nameConfirmed) return null;
 
+  const isEnglish = /^[a-zA-Z0-9\s.,!?'"()-]+$/.test(body);
+
   if (meta.awaitingNameConfirm) {
     const lower = body.toLowerCase().trim();
     const isYes = /^(yes|ha|haan|haa|correct|right|bilkul|sahi|ok|okay|yep|yup|👍)/.test(lower);
@@ -651,7 +650,9 @@ async function handleNameConfirmation(jid, body, meta, contact) {
     if (isYes) {
       meta.nameConfirmed = true; meta.awaitingNameConfirm = false;
       await updateContact(jid, { name: meta.pendingName, name_confirmed: true });
-      return `Great! Welcome to Optimus Gym, *${meta.pendingName}* 🎉\nKya help kar sakta hoon aaj? 💪`;
+      return isEnglish 
+        ? `Great! Welcome to Optimus Gym, *${meta.pendingName}* 🎉\nHow can I help you today? 💪`
+        : `Great! Welcome to Optimus Gym, *${meta.pendingName}* 🎉\nKya help kar sakta hoon aaj? 💪`;
     }
 
     if (isNo || body.length > 2) {
@@ -659,10 +660,14 @@ async function handleNameConfirmation(jid, body, meta, contact) {
       if (providedName && providedName.length > 1 && providedName.length < 50) {
         meta.pendingName = providedName; meta.nameConfirmed = true; meta.awaitingNameConfirm = false;
         await updateContact(jid, { name: providedName, name_confirmed: true });
-        return `Got it! Welcome, *${providedName}* 🙌\nKya help kar sakta hoon? 💪`;
+        return isEnglish
+          ? `Got it! Welcome, *${providedName}* 🙌\nHow can I help you? 💪`
+          : `Got it! Welcome, *${providedName}* 🙌\nKya help kar sakta hoon? 💪`;
       } else {
         meta.awaitingNameConfirm = false; meta.awaitingName = true;
-        return "Koi baat nahi! Apna naam bata do 😊";
+        return isEnglish
+          ? "No problem! What's your name? 😊"
+          : "Koi baat nahi! Apna naam bata do 😊";
       }
     }
   }
@@ -672,19 +677,27 @@ async function handleNameConfirmation(jid, body, meta, contact) {
     if (name.length > 1 && name.length < 50) {
       meta.pendingName = name; meta.nameConfirmed = true; meta.awaitingName = false;
       await updateContact(jid, { name, name_confirmed: true });
-      return `Nice to meet you, *${name}* 🙌\nKya help kar sakta hoon? 💪`;
+      return isEnglish
+        ? `Nice to meet you, *${name}* 🙌\nHow can I help you? 💪`
+        : `Nice to meet you, *${name}* 🙌\nKya help kar sakta hoon? 💪`;
     }
-    return "Apna naam share karo toh main better help kar sakta hoon 😊";
+    return isEnglish
+      ? "Please share your name so I can help you better 😊"
+      : "Apna naam share karo toh main better help kar sakta hoon 😊";
   }
 
   if (!contact || !contact.name_confirmed) {
     const whatsappName = meta.whatsappName;
     if (whatsappName && whatsappName.length > 1) {
       meta.pendingName = whatsappName; meta.awaitingNameConfirm = true;
-      return `Hi! 👋 Welcome to *Optimus Gym*!\nKya aapka naam *${whatsappName}* hai?\n\nReply *Yes* to confirm or type your correct name 😊`;
+      return isEnglish
+        ? `Hi! 👋 Welcome to *Optimus Gym*!\nIs your name *${whatsappName}*?\n\nReply *Yes* to confirm or type your correct name 😊`
+        : `Hi! 👋 Welcome to *Optimus Gym*!\nKya aapka naam *${whatsappName}* hai?\n\nReply *Yes* to confirm or type your correct name 😊`;
     } else {
       meta.awaitingName = true;
-      return `Hi! 👋 Welcome to *Optimus Gym*!\nMay I know your name? 😊`;
+      return isEnglish
+        ? `Hi! 👋 Welcome to *Optimus Gym*!\nMay I know your name? 😊`
+        : `Hi! 👋 Welcome to *Optimus Gym*!\nAapka naam kya hai? 😊`;
     }
   }
   return null;
