@@ -19,7 +19,7 @@ app.use(cors({
       return cb(null, true);
     cb(new Error("CORS: origin not allowed"));
   },
-  methods: ["GET","POST"],
+  methods: ["GET","POST","DELETE"],
 }));
 
 // ── Security: limit request body size to prevent payload attacks ──────────────
@@ -114,6 +114,20 @@ async function supabaseGet(p) {
     });
     return res.ok ? res.json() : null;
   } catch { return null; }
+}
+
+async function supabaseDelete(table, filter) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/${table}?${filter}`, {
+      method: "DELETE",
+      headers: {
+        apikey:        SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    return res.ok ? true : false;
+  } catch { return false; }
 }
 
 async function supabaseDelete(table, filter) {
@@ -870,6 +884,10 @@ function startClient(phone) {
   });
 
   c.on("message", async (msg) => {
+    console.log("\n=== INCOMING MESSAGE DATA ===");
+    console.log(msg);
+    console.log("==============================\n");
+
     if (msg.from === "status@broadcast" || msg.isStatus) return;
     if (msg.from.endsWith("@g.us") || msg.fromMe) return;
 
@@ -992,6 +1010,23 @@ app.post("/send", auth, async (req, res) => {
 app.get("/contacts", auth, async (_req, res) => {
   const rows = await supabaseGet("whatsapp_contacts?order=last_seen.desc&limit=200");
   res.json(rows || []);
+});
+
+app.delete("/contact/:jid", auth, async (req, res) => {
+  const jid = decodeURIComponent(req.params.jid);
+  if (!/^\d+(?::\d+)?@[a-z.]+$/.test(jid)) return res.status(400).json({ error: "Invalid JID format" });
+
+  const filter = `jid=eq.${encodeURIComponent(jid)}`;
+  await Promise.allSettled([
+    supabaseDelete("whatsapp_contacts", filter),
+    supabaseDelete("chat_crux", filter),
+    supabaseDelete("bot_feedback", filter),
+    supabaseDelete("chat_tokens", filter)
+  ]);
+
+  conversations.delete(jid);
+  userMeta.delete(jid);
+  res.json({ success: true });
 });
 
 app.delete("/contact/:jid", auth, async (req, res) => {
